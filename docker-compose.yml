@@ -52,8 +52,9 @@ services:
       - FLYWAY_SCHEMAS=public
       - SPRING_PROFILES_ACTIVE=prod
     depends_on:
-      db:
-        condition: service_healthy
+      - db
+#      db:
+#        condition: service_healthy
     networks:
       - app-network
 
@@ -75,10 +76,12 @@ services:
       - LOGGING_LEVEL_ROOT=DEBUG
       - LOGGING_LEVEL_COM_FINTRACK=DEBUG
     depends_on:
-      db:
-        condition: service_healthy
-      migrator:
-        condition: service_completed_successfully
+      - db
+      - migrator
+#      db:
+#        condition: service_healthy
+#      migrator:
+#        condition: service_completed_successfully
     networks:
       - app-network
 #    healthcheck:
@@ -102,12 +105,15 @@ services:
       - LOGGING_LEVEL_ROOT=DEBUG
       - LOGGING_LEVEL_COM_FINTRACK=DEBUG
     depends_on:
-      db:
-        condition: service_healthy
-      migrator:
-        condition: service_completed_successfully
-      finance-security:
-        condition: service_healthy
+      - db
+      - migrator
+      - finance-security
+#      db:
+#        condition: service_healthy
+#      migrator:
+#        condition: service_completed_successfully
+#      finance-security:
+#        condition: service_healthy
     networks:
       - app-network
 #    healthcheck:

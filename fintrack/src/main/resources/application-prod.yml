@@ -1,0 +1,62 @@
+spring:
+  application:
+    name: fintrack
+  datasource:
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      connection-timeout: 30000
+      maximum-pool-size: 10
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+
+server:
+  port: 8080
+  servlet:
+    context-path: /api/v1
+
+security:
+  service:
+    url: ${SECURITY_SERVICE_URL}
+
+logging:
+  level:
+    root: INFO
+    org.springframework.web: WARN
+    org.hibernate: ERROR
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when_authorized
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      securityService:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30000
+        permittedNumberOfCallsInHalfOpenState: 3
+  retry:
+    instances:
+      securityService:
+        maxAttempts: 3
+        waitDuration: 1000
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2 

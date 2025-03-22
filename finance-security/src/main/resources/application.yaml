@@ -1,0 +1,32 @@
+server:
+  port: 8081
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/postgres
+    username: postgres
+    password: shzh1997
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: zhandik.1997@gmail.com
+    password: kcjbjcwpielpcwwx
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+jwt:
+  secret: mySuperSecretKeyForJwtGeneration
+  expiration:
+    ms: 604800000  # 7 дней в миллисекундах
+
+google:
+  client:
+    id: 663807920764-i8k5osbt3ug04iotrr1cu4mgpfrbjb45.apps.googleusercontent.com

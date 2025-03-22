@@ -22,7 +22,7 @@ RUN addgroup -S spring && adduser -S spring -G spring
 USER spring:spring
 
 # Копируем готовый JAR из build-стадии
-COPY --from=build /app/target/*.jar app.jar
+COPY --from=build /app/target/finance-security-0.0.1-SNAPSHOT.jar app.jar
 
 # Настройка переменных окружения по умолчанию
 ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/./urandom"
@@ -34,4 +34,4 @@ HEALTHCHECK --interval=30s --timeout=3s \
 EXPOSE 8080
 
 # Оптимизированный запуск
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"] 
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

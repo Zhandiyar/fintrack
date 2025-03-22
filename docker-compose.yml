@@ -16,14 +16,6 @@ services:
       - finance-security
     networks:
       - app-network
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 512M
-        reservations:
-          cpus: '0.5'
-          memory: 256M
 
   db:
     image: postgres:16
@@ -33,7 +25,7 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
     ports:
-      - '${POSTGRES_PORT}:5432'
+      - '${POSTGRES_PORT:-5432}:5432'
     volumes:
       - db_data:/var/lib/postgresql/data
       - postgres_logs:/var/log/postgresql
@@ -44,14 +36,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 1G
-        reservations:
-          cpus: '1'
-          memory: 512M
 
   migrator:
     build:
@@ -68,17 +52,9 @@ services:
         condition: service_healthy
     networks:
       - app-network
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 256M
-        reservations:
-          cpus: '0.2'
-          memory: 128M
 
   finance-security:
-    build: 
+    build:
       context: ./finance-security
       dockerfile: Dockerfile
     restart: always
@@ -104,14 +80,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 1G
-        reservations:
-          cpus: '0.5'
-          memory: 512M
 
   fintrack:
     build:

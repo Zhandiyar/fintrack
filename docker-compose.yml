@@ -42,11 +42,15 @@ services:
       context: ./migrator
       dockerfile: Dockerfile
     environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/${POSTGRES_DB}
+      - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER}
+      - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
       - FLYWAY_URL=jdbc:postgresql://db:5432/${POSTGRES_DB}
       - FLYWAY_USER=${POSTGRES_USER}
       - FLYWAY_PASSWORD=${POSTGRES_PASSWORD}
       - FLYWAY_CONNECT_RETRIES=10
       - FLYWAY_SCHEMAS=public
+      - SPRING_PROFILES_ACTIVE=prod
     depends_on:
       db:
         condition: service_healthy

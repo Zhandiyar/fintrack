@@ -9,3 +9,4 @@ public class WebConfig implements org.springframework.web.servlet.config.annotat
                 .allowedOrigins("*") // или указать конкретный адрес: "http://localhost:3000"
                 .allowedMethods("*");
     }
+}

@@ -14,11 +14,16 @@ public class EmailService {
     private final JavaMailSender emailSender;
 
     public void sendSimpleMessage(String to, String subject, String text) {
-        SimpleMailMessage message = new SimpleMailMessage();
-        message.setTo(to);
-        message.setSubject(subject);
-        message.setText(text);
-        emailSender.send(message);
-        log.info("Email sent to {}", to);
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setTo(to);
+            message.setSubject(subject);
+            message.setText(text);
+            emailSender.send(message);
+            log.info("Письмо успешно отправлено на {}", to);
+        } catch (Exception e) {
+            log.error("Ошибка при отправке письма", e); // <-- ВАЖНО!
+            throw new RuntimeException("Ошибка при отправке письма", e); // или твоя кастомная
+        }
     }
 }

@@ -25,7 +25,6 @@ spring:
     port: ${MAIL_PORT}
     username: ${MAIL_USERNAME}
     password: ${MAIL_PASSWORD}
-    protocol: smtp
     properties:
       mail:
         smtp:

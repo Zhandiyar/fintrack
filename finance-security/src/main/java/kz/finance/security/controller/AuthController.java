@@ -71,7 +71,7 @@ public class AuthController {
         var resetToken = passwordResetService.createPasswordResetTokenForUser(user);
 
         // В продакшене URL должен формироваться согласно домену вашего фронтенда
-        String resetUrl = "myapp://reset-password?token=" + resetToken.getToken();
+        String resetUrl = "https://fin-track.pro/reset-password?token=" + resetToken.getToken();
         emailService.sendSimpleMessage(user.getEmail(), "Сброс пароля", "Перейдите по ссылке:\n" + resetUrl);
         return ResponseEntity.ok(ApiResponse.success("Password reset link sent to your email"));
     }

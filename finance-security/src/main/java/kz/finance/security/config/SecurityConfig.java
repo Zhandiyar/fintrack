@@ -55,7 +55,7 @@ public class SecurityConfig {
     @Bean
     public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
         org.springframework.web.cors.CorsConfiguration config = new org.springframework.web.cors.CorsConfiguration();
-        config.setAllowedOrigins(List.of(
+        config.setAllowedOrigins(java.util.List.of(
                 "https://api.fintrack.pro",
                 "https://fintrack.pro"
         ));

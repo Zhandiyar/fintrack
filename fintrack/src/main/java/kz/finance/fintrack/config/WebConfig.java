@@ -6,7 +6,7 @@ public class WebConfig implements org.springframework.web.servlet.config.annotat
     @Override
     public void addCorsMappings(org.springframework.web.servlet.config.annotation.CorsRegistry registry) {
         registry.addMapping("/**")
-                .allowedOrigins("https://fintrack.pro", "https://api.fintrack.pro")
+                .allowedOrigins("https://fin-track.pro", "https://api.fin-track.pro")
                 .allowedMethods("*")
                 .allowedHeaders("*");
     }

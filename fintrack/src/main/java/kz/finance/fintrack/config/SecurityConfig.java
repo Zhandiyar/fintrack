@@ -56,8 +56,8 @@ public class SecurityConfig {
     public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
         org.springframework.web.cors.CorsConfiguration config = new org.springframework.web.cors.CorsConfiguration();
         config.setAllowedOrigins(java.util.List.of(
-                "https://api.fintrack.pro",
-                "https://fintrack.pro"
+                "https://api.fin-track.pro",
+                "https://fin-track.pro"
         ));
         config.setAllowedMethods(java.util.List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(java.util.List.of("*"));

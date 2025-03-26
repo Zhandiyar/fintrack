@@ -70,11 +70,20 @@ public class AuthController {
         UserEntity user = userService.getByEmailOrThrow(request.email());
         var resetToken = passwordResetService.createPasswordResetTokenForUser(user);
 
-        // В продакшене URL должен формироваться согласно домену вашего фронтенда
+        // Формируем ссылку на сброс пароля
         String resetUrl = "https://fin-track.pro/reset-password?token=" + resetToken.getToken();
-        emailService.sendSimpleMessage(user.getEmail(), "Сброс пароля", "Перейдите по ссылке:\n" + resetUrl);
+
+        // Отправляем письмо через Resend
+        String subject = "Сброс пароля";
+        String text = "Здравствуйте, " + user.getUsername() + "!\n\n" +
+                      "Чтобы сбросить пароль, перейдите по ссылке:\n" + resetUrl + "\n\n" +
+                      "Если вы не запрашивали сброс пароля, просто проигнорируйте это письмо.";
+
+        emailService.sendSimpleMessage(user.getEmail(), subject, text);
+
         return ResponseEntity.ok(ApiResponse.success("Password reset link sent to your email"));
     }
+
 
     @PostMapping("/reset-password")
     public ResponseEntity<ApiResponse> resetPassword(@Valid @RequestBody ResetPasswordRequestDto request) {

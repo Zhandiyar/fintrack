@@ -4,9 +4,9 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class ReminderMedicinesApplication {
+public class FinanceSecurityApplication {
 
-	public static void main(String[] args) {SpringApplication.run(ReminderMedicinesApplication.class, args);
+	public static void main(String[] args) {SpringApplication.run(FinanceSecurityApplication.class, args);
 	}
 
 }

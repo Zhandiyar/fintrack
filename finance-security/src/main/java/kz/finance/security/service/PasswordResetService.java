@@ -20,21 +20,19 @@ public class PasswordResetService {
     private final PasswordResetTokenRepository tokenRepository;
 
     @Transactional
-    public PasswordResetTokenEntity createPasswordResetTokenForUser(UserEntity user) {
-        tokenRepository.deleteByUser(user);
+    public PasswordResetTokenEntity createOrUpdatePasswordResetTokenForUser(UserEntity user) {
+        java.util.Optional<PasswordResetTokenEntity> existingTokenOpt = tokenRepository.findByUser(user);
 
-        String tokenValue = UUID.randomUUID().toString();
-        LocalDateTime expiryDate = LocalDateTime.now().plusHours(24);
+        PasswordResetTokenEntity token = existingTokenOpt.orElse(
+                PasswordResetTokenEntity.builder().user(user).build()
+        );
 
-        PasswordResetTokenEntity token = PasswordResetTokenEntity.builder()
-            .token(tokenValue)
-            .user(user)
-            .expiryDate(expiryDate)
-            .build();
+        token.setToken(UUID.randomUUID().toString());
+        token.setExpiryDate(LocalDateTime.now().plusHours(24));
 
-        PasswordResetTokenEntity savedToken = tokenRepository.save(token);
-        log.info("Password reset token created for user {}: {}", user.getUsername(), tokenValue);
-        return savedToken;
+        PasswordResetTokenEntity saved = tokenRepository.save(token);
+        log.info("Password reset token (re)created for user {}: {}", user.getUsername(), token.getToken());
+        return saved;
     }
 
     @Transactional

@@ -68,7 +68,7 @@ public class AuthController {
     @PostMapping("/forgot-password")
     public ResponseEntity<ApiResponse> forgotPassword(@Valid @RequestBody ForgotPasswordRequestDto request) {
         UserEntity user = userService.getByEmailOrThrow(request.email());
-        var resetToken = passwordResetService.createPasswordResetTokenForUser(user);
+        var resetToken = passwordResetService.createOrUpdatePasswordResetTokenForUser(user);
 
         // Формируем ссылку на сброс пароля
         String resetUrl = "https://fin-track.pro/reset-password?token=" + resetToken.getToken();

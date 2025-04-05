@@ -1,11 +1,9 @@
 package kz.finance.fintrack.model;
 
 import jakarta.persistence.*;
-import kz.finance.fintrack.dto.ExpenseCategory;
 import lombok.*;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 

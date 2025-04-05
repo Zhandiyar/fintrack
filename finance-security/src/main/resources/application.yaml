@@ -13,7 +13,8 @@ spring:
 
 resend:
   api:
-    key: ${RESEND_API_KEY}
+    key: cdvd
+#    key: ${RESEND_API_KEY}
 
 jwt:
   secret: mySuperSecretKeyForJwtGeneration

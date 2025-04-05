@@ -1,4 +1,4 @@
-package kz.finance.fintrack.dto;
+package kz.finance.fintrack.model;
 
 /**
  * Перечисление категорий расходов, охватывающее основные и дополнительные варианты.

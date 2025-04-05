@@ -2,7 +2,7 @@ package kz.finance.fintrack.repository;
 
 import kz.finance.fintrack.dto.CategoryExpenseDto;
 import kz.finance.fintrack.dto.ExpenseAggregationDto;
-import kz.finance.fintrack.dto.ExpenseCategory;
+import kz.finance.fintrack.model.ExpenseCategory;
 import kz.finance.fintrack.dto.ExpenseDto;
 import kz.finance.fintrack.model.ExpenseEntity;
 import kz.finance.fintrack.model.UserEntity;
@@ -11,10 +11,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import kz.finance.fintrack.dto.ChartDataDto;
-import java.math.BigDecimal;
-import java.time.LocalDate;
+
 import java.time.LocalDateTime;
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 

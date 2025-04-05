@@ -2,19 +2,16 @@ package kz.finance.fintrack.service;
 
 import kz.finance.fintrack.dto.CategoryExpenseDetailsDto;
 import kz.finance.fintrack.dto.CategoryExpenseDto;
-import kz.finance.fintrack.dto.CategoryReportDto;
 import kz.finance.fintrack.dto.PeriodType;
 import kz.finance.fintrack.dto.ChartDataDto;
-import kz.finance.fintrack.dto.ExpenseCategory;
+import kz.finance.fintrack.model.ExpenseCategory;
 import kz.finance.fintrack.dto.ExpenseDto;
 import kz.finance.fintrack.dto.ExpenseSummaryDto;
-import kz.finance.fintrack.dto.ExpenseSummaryRequestDto;
 import kz.finance.fintrack.model.ExpenseEntity;
 import kz.finance.fintrack.model.UserEntity;
 import kz.finance.fintrack.repository.ExpenseRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -25,7 +22,6 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
-import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -231,8 +227,10 @@ public class ExpenseService {
                         cat.category(),
                         cat.amount(),
                         totalAmount.compareTo(BigDecimal.ZERO) > 0
-                                ? cat.amount().multiply(BigDecimal.valueOf(100)).divide(totalAmount, 0, RoundingMode.HALF_UP).intValue()
-                                : 0,
+                                ? cat.amount()
+                                .multiply(BigDecimal.valueOf(100))
+                                .divide(totalAmount, 2, RoundingMode.HALF_UP)
+                                : BigDecimal.ZERO,
                         expenseRepository.findExpensesByCategoryDto(user, cat.category(), PageRequest.of(0, 10))
                 ))
                 .toList();

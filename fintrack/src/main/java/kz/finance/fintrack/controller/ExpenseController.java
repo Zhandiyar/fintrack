@@ -1,7 +1,7 @@
 package kz.finance.fintrack.controller;
 
 import kz.finance.fintrack.dto.CategoryExpenseDetailsDto;
-import kz.finance.fintrack.dto.ExpenseCategory;
+import kz.finance.fintrack.model.ExpenseCategory;
 import kz.finance.fintrack.dto.ExpenseDto;
 import kz.finance.fintrack.dto.ExpenseSummaryDto;
 import kz.finance.fintrack.utils.*;
@@ -17,7 +17,8 @@ import java.util.List;
 public class ExpenseController {
     private final ExpenseService expenseService;
     private final ExpenseCategoryConverter expenseCategoryConverter;
-private final PeriodTypeCategoryConverter periodTypeCategoryConverter;
+    private final PeriodTypeCategoryConverter periodTypeCategoryConverter;
+
     @GetMapping
     public List<ExpenseDto> getExpenses() {
         return expenseService.getUserExpenses();

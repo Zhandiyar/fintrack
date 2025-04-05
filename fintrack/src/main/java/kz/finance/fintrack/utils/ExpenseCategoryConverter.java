@@ -1,7 +1,6 @@
 package kz.finance.fintrack.utils;
 
-import kz.finance.fintrack.dto.ExpenseCategory;
-import org.hibernate.annotations.Comment;
+import kz.finance.fintrack.model.ExpenseCategory;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.stereotype.Component;
 

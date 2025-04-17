@@ -1,6 +1,7 @@
 package kz.finance.security.dto;
 
 public record GoogleSignInRequest(
-        String idToken
+        String idToken,
+        String platform
 ) {
 }

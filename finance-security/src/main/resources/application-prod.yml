@@ -42,3 +42,9 @@ management:
   endpoint:
     health:
       show-details: always
+
+google:
+  client:
+    web-client-id: ${GOOGLE_WEB_CLIENT_ID}
+    android-client-id: ${GOOGLE_ANDROID_CLIENT_ID}
+    ios-client-id: ${GOOGLE_IOS_CLIENT_ID}

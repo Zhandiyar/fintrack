@@ -53,8 +53,6 @@ services:
       - SPRING_PROFILES_ACTIVE=prod
     depends_on:
       - db
-#      db:
-#        condition: service_healthy
     networks:
       - app-network
 
@@ -76,17 +74,13 @@ services:
     depends_on:
       - db
       - migrator
-#      db:
-#        condition: service_healthy
-#      migrator:
-#        condition: service_completed_successfully
     networks:
       - app-network
-#    healthcheck:
-#      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health"]
-#      interval: 30s
-#      timeout: 10s
-#      retries: 3
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   fintrack:
     build:
@@ -107,19 +101,13 @@ services:
       - db
       - migrator
       - finance-security
-#      db:
-#        condition: service_healthy
-#      migrator:
-#        condition: service_completed_successfully
-#      finance-security:
-#        condition: service_healthy
     networks:
       - app-network
-#    healthcheck:
-#      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health"]
-#      interval: 30s
-#      timeout: 10s
-#      retries: 3
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
 networks:
   app-network:

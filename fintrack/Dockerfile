@@ -29,7 +29,7 @@ ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -Djava.securit
 
 # Проверка работоспособности
 HEALTHCHECK --interval=30s --timeout=3s \
-  CMD wget -q --spider http://localhost:8080/api/v1/security/actuator/health || exit 1
+  CMD wget -q --spider http://localhost:8080/actuator/health || exit 1
 
 EXPOSE 8080
 

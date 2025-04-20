@@ -97,11 +97,11 @@ public class UserService {
         return savedUser;
     }
 
-    public UserEntity upgradeGuestToUser(String guestUsername, String email, String password) {
+    public UserEntity upgradeGuestToUser(String guestUsername, String newUsername, String email, String password) {
         UserEntity guestUser = userRepository.findByUsername(guestUsername).orElseThrow();
 
         UserEntity newUser = UserEntity.builder()
-                .username(email)
+                .username(newUsername)
                 .email(email)
                 .password(passwordEncoder.encode(password))
                 .guest(false)

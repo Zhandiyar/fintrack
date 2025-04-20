@@ -138,7 +138,7 @@ public class AuthController {
     @PostMapping("/register-from-guest")
     public ResponseEntity<ApiResponse> registerFromGuest(@RequestBody RegisterRequestDto request, Authentication auth) {
         String guestUsername = auth.getName();
-        UserEntity newUser = userService.upgradeGuestToUser(guestUsername, request.email(), request.password());
+        UserEntity newUser = userService.upgradeGuestToUser(guestUsername, request.username(), request.email(), request.password());
         String token = jwtTokenProvider.generateToken(newUser.getUsername());
         return ResponseEntity.ok(ApiResponse.success("User registered", token));
     }

@@ -127,4 +127,19 @@ public class AuthController {
 
         return ResponseEntity.ok(ApiResponse.success("Google login successful", token));
     }
+
+    @PostMapping("/guest")
+    public ResponseEntity<ApiResponse> createGuestUser() {
+        UserEntity guestUser = userService.createGuestUser();
+        String token = jwtTokenProvider.generateToken(guestUser.getUsername());
+        return ResponseEntity.ok(ApiResponse.success("Guest user created successfully", token));
+    }
+
+    @PostMapping("/register-from-guest")
+    public ResponseEntity<ApiResponse> registerFromGuest(@RequestBody RegisterRequestDto request, Authentication auth) {
+        String guestUsername = auth.getName();
+        UserEntity newUser = userService.upgradeGuestToUser(guestUsername, request.email(), request.password());
+        String token = jwtTokenProvider.generateToken(newUser.getUsername());
+        return ResponseEntity.ok(ApiResponse.success("User registered", token));
+    }
 }

@@ -16,9 +16,9 @@ resend:
     key: ${RESEND_API_KEY}
 
 jwt:
-  secret: mySuperSecretKeyForJwtGeneration
+  secret: ${JWT_SECRET}
   expiration:
-    ms: 604800000  # 7 дней в миллисекундах
+    ms: ${JWT_EXPIRATION_MS:604800000} # 7 дней в миллисекундах
 
 google:
   client:

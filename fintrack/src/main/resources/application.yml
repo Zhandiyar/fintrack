@@ -13,5 +13,5 @@ spring:
     show-sql: true
   security:
     jwt:
-      secret: mySuperSecretKeyForJwtGeneration
+      secret: ${JWT_SECRET}
 

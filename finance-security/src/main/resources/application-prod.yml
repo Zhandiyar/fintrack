@@ -43,6 +43,11 @@ management:
     health:
       show-details: always
 
+jwt:
+  secret: ${JWT_SECRET}
+  expiration:
+    ms: ${JWT_EXPIRATION_MS:604800000}
+
 google:
   client:
     web-client-id: ${GOOGLE_WEB_CLIENT_ID}

@@ -22,6 +22,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -136,12 +137,27 @@ public class AuthController {
     }
 
     @PostMapping("/register-from-guest")
-    public ResponseEntity<ApiResponse> registerFromGuest(@RequestBody RegisterRequestDto request, Authentication auth) {
-        String guestUsername = auth.getName();
-        userService.getByUsernameOrThrow(guestUsername);
+    public ResponseEntity<ApiResponse> registerFromGuest(@RequestBody RegisterRequestDto request) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
-        UserEntity newUser = userService.upgradeGuestToUser(guestUsername, request.username(), request.email(), request.password());
+        if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getPrincipal())) {
+            throw new RuntimeException("Unauthorized access");
+        }
+
+        String guestUsername = auth.getName();
+        UserEntity guestUser = userService.getByUsernameOrThrow(guestUsername);
+
+        if (!guestUser.isGuest()) {
+            throw new RuntimeException("Only guest users can register here.");
+        }
+
+        UserEntity newUser = userService.upgradeGuestToUser(
+                guestUsername,
+                request.username(),
+                request.email(),
+                request.password()
+        );
         String token = jwtTokenProvider.generateToken(newUser.getUsername());
-        return ResponseEntity.ok(ApiResponse.success("User registered", token));
+        return ResponseEntity.ok(ApiResponse.success("User registered successfully", token));
     }
 }

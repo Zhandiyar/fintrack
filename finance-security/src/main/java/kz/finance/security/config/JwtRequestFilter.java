@@ -39,28 +39,24 @@ public class JwtRequestFilter extends OncePerRequestFilter {
                                     FilterChain filterChain) throws ServletException, IOException {
         try {
             String jwt = getJwtFromRequest(request);
+
             if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)) {
                 String username = tokenProvider.getUsernameFromJWT(jwt);
                 List<String> roles = tokenProvider.getRolesFromJWT(jwt);
 
                 if (roles.isEmpty()) {
-                    throw new RuntimeException("No roles found in token");
+                    throw new IllegalArgumentException("Invalid token: no roles found");
                 }
 
                 UserDetails userDetails;
-
-                try {
+                if (username.startsWith("guest_") && roles.contains("ROLE_GUEST")) {
+                    userDetails = new User(
+                            username,
+                            "",
+                            List.of(new SimpleGrantedAuthority("ROLE_GUEST"))
+                    );
+                } else {
                     userDetails = customUserDetailsService.loadUserByUsername(username);
-                } catch (UsernameNotFoundException ex) {
-                    if (username.startsWith("guest_") && roles.contains("ROLE_GUEST")) {
-                        userDetails = new User(
-                                username,
-                                "",
-                                List.of(new SimpleGrantedAuthority("ROLE_GUEST"))
-                        );
-                    } else {
-                        throw ex;
-                    }
                 }
 
                 UsernamePasswordAuthenticationToken authentication =
@@ -68,15 +64,27 @@ public class JwtRequestFilter extends OncePerRequestFilter {
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
-        } catch (Exception ex) {
-            log.error("Authentication error: {}", ex.getMessage());
-            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-            response.setContentType("application/json");
-            response.getWriter().write("{\"success\": false, \"message\": \"Unauthorized\"}");
+        } catch (IllegalArgumentException e) {
+            log.warn("Invalid token: {}", e.getMessage());
+            sendErrorResponse(response, "Invalid token");
+            return;
+        } catch (UsernameNotFoundException e) {
+            log.warn("User not found: {}", e.getMessage());
+            sendErrorResponse(response, "User not found");
+            return;
+        } catch (Exception e) {
+            log.error("Authentication error: {}", e.getMessage());
+            sendErrorResponse(response, "Unauthorized");
             return;
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private void sendErrorResponse(HttpServletResponse response, String message) throws IOException {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType("application/json");
+        response.getWriter().write("{\"success\": false, \"message\": \"" + message + "\"}");
     }
 
 

@@ -37,14 +37,25 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers("/actuator/**").permitAll()
+                        .requestMatchers(
+                                "/api/auth/register",
+                                "/api/auth/login",
+                                "/api/auth/guest",
+                                "/api/auth/forgot-password",
+                                "/api/auth/reset-password",
+                                "/api/auth/google-signin",
+                                "/actuator/**",
+                                "/swagger-ui/**",
+                                "/v3/api-docs/**"
+                        ).permitAll()
+                        .requestMatchers("/api/auth/register-from-guest").authenticated()
                         .requestMatchers(PathRequest.toStaticResources().atCommonLocations()).permitAll()
                         .anyRequest().authenticated()
                 );
         http.addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
+
 
     @Bean
     public PasswordEncoder passwordEncoder() {

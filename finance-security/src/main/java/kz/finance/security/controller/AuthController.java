@@ -152,7 +152,7 @@ public class AuthController {
         }
 
         UserEntity newUser = userService.upgradeGuestToUser(
-                guestUsername,
+                guestUser,
                 request.username(),
                 request.email(),
                 request.password()

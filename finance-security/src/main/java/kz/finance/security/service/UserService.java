@@ -2,7 +2,6 @@ package kz.finance.security.service;
 
 import kz.finance.security.exception.UserAlreadyExistsException;
 import kz.finance.security.exception.UserNotFoundException;
-import kz.finance.security.model.ExpenseEntity;
 import kz.finance.security.model.UserEntity;
 import kz.finance.security.model.UserRole;
 import kz.finance.security.repository.ExpenseRepository;
@@ -12,7 +11,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -97,24 +95,13 @@ public class UserService {
         return savedUser;
     }
 
-    public UserEntity upgradeGuestToUser(String guestUsername, String newUsername, String email, String password) {
-        UserEntity guestUser = userRepository.findByUsername(guestUsername).orElseThrow();
+    public UserEntity upgradeGuestToUser(UserEntity guestUser, String newUsername, String email, String password) {
+        guestUser.setUsername(newUsername);
+        guestUser.setEmail(email);
+        guestUser.setPassword(passwordEncoder.encode(password));
+        guestUser.setGuest(false);
+        guestUser.setRoles(Set.of(UserRole.USER.getRole()));
 
-        UserEntity newUser = UserEntity.builder()
-                .username(newUsername)
-                .email(email)
-                .password(passwordEncoder.encode(password))
-                .guest(false)
-                .roles(Set.of(UserRole.USER.getRole()))
-                .build();
-
-        userRepository.save(newUser);
-
-        List<ExpenseEntity> expenses = expenseRepository.findAllByUser(guestUser);
-        expenses.forEach(e -> e.setUser(newUser));
-        expenseRepository.saveAll(expenses);
-
-        userRepository.delete(guestUser);
-        return newUser;
+        return userRepository.save(guestUser);
     }
 }

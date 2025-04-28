@@ -11,7 +11,6 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -44,43 +43,32 @@ public class JwtRequestFilter extends OncePerRequestFilter {
                 String username = tokenProvider.getUsernameFromJWT(jwt);
                 List<String> roles = tokenProvider.getRolesFromJWT(jwt);
 
-                if (roles.isEmpty()) {
-                    throw new IllegalArgumentException("Invalid token: no roles found");
-                }
+                if (!roles.isEmpty()) {
+                    UserDetails userDetails;
+                    if (username.startsWith("guest_") && roles.contains("ROLE_GUEST")) {
+                        userDetails = new User(
+                                username,
+                                "",
+                                List.of(new SimpleGrantedAuthority("ROLE_GUEST"))
+                        );
+                    } else {
+                        userDetails = customUserDetailsService.loadUserByUsername(username);
+                    }
 
-                UserDetails userDetails;
-                if (username.startsWith("guest_") && roles.contains("ROLE_GUEST")) {
-                    userDetails = new User(
-                            username,
-                            "",
-                            List.of(new SimpleGrantedAuthority("ROLE_GUEST"))
-                    );
-                } else {
-                    userDetails = customUserDetailsService.loadUserByUsername(username);
+                    UsernamePasswordAuthenticationToken authentication =
+                            new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
                 }
-
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                authentication.setAuthenticated(true);
-                SecurityContextHolder.getContext().setAuthentication(authentication);
             }
-        } catch (IllegalArgumentException e) {
-            log.warn("Invalid token: {}", e.getMessage());
-            sendErrorResponse(response, "Invalid token");
-            return;
-        } catch (UsernameNotFoundException e) {
-            log.warn("User not found: {}", e.getMessage());
-            sendErrorResponse(response, "User not found");
-            return;
         } catch (Exception e) {
-            log.error("Authentication error: {}", e.getMessage());
-            sendErrorResponse(response, "Unauthorized");
-            return;
+            log.error("Failed to authenticate user", e);
+            // ❗ Просто логируем ошибку и пропускаем дальше
         }
 
         filterChain.doFilter(request, response);
     }
+
 
     private void sendErrorResponse(HttpServletResponse response, String message) throws IOException {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);

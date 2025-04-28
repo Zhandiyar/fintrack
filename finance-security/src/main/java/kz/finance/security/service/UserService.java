@@ -11,6 +11,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
@@ -87,7 +88,7 @@ public class UserService {
                 .email(email)
                 .password(passwordEncoder.encode(password))
                 .guest(true)
-                .roles(Set.of(UserRole.GUEST.getRole()))
+                .roles(new HashSet<>(Set.of(UserRole.GUEST.getRole())))
                 .build();
 
         UserEntity savedUser = userRepository.save(guestUser);
@@ -95,12 +96,13 @@ public class UserService {
         return savedUser;
     }
 
+
     public UserEntity upgradeGuestToUser(UserEntity guestUser, String newUsername, String email, String password) {
         guestUser.setUsername(newUsername);
         guestUser.setEmail(email);
         guestUser.setPassword(passwordEncoder.encode(password));
         guestUser.setGuest(false);
-        guestUser.setRoles(Set.of(UserRole.USER.getRole()));
+        guestUser.setRoles(new HashSet<>(Set.of(UserRole.USER.getRole()))); // <-- ИСПРАВИЛ
 
         return userRepository.save(guestUser);
     }

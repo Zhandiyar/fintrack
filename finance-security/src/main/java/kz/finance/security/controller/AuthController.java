@@ -19,6 +19,7 @@ import kz.finance.security.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -136,6 +137,7 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success("Guest user created successfully", token));
     }
 
+    @PreAuthorize("hasRole('GUEST')")
     @PostMapping("/register-from-guest")
     public ResponseEntity<ApiResponse> registerFromGuest(@RequestBody RegisterRequestDto request) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();

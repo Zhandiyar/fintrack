@@ -98,7 +98,12 @@ public class JwtRequestFilter extends OncePerRequestFilter {
     }
 
     private static final List<String> EXCLUDED_PATHS = List.of(
-            "/api/auth",
+            "/api/auth/login",
+            "/api/auth/register",
+            "/api/auth/guest",
+            "/api/auth/forgot-password",
+            "/api/auth/reset-password",
+            "/api/auth/google-signin",
             "/actuator/health",
             "/actuator/info"
     );
@@ -106,6 +111,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
         String path = request.getRequestURI();
-        return EXCLUDED_PATHS.stream().anyMatch(path::startsWith);
+        return EXCLUDED_PATHS.stream().anyMatch(path::equals);
     }
+
 }

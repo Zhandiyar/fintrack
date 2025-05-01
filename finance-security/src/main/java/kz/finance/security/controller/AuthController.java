@@ -80,11 +80,16 @@ public class AuthController {
         // Формируем ссылку на сброс пароля
         String resetUrl = "https://fin-track.pro/reset-password?token=" + resetToken.getToken();
 
-        // Отправляем письмо через Resend
-        String subject = "Сброс пароля";
+        // Отправляем письмо
+        String subject = "Сброс пароля / Password Reset";
+
         String text = "Здравствуйте, " + user.getUsername() + "!\n\n" +
                       "Чтобы сбросить пароль, перейдите по ссылке:\n" + resetUrl + "\n\n" +
-                      "Если вы не запрашивали сброс пароля, просто проигнорируйте это письмо.";
+                      "Если вы не запрашивали сброс пароля, просто проигнорируйте это письмо.\n\n" +
+                      "—\n\n" +
+                      "Hello, " + user.getUsername() + "!\n\n" +
+                      "To reset your password, click the link below:\n" + resetUrl + "\n\n" +
+                      "If you didn’t request a password reset, you can safely ignore this message.";
 
         emailService.sendSimpleMessage(user.getEmail(), subject, text);
 

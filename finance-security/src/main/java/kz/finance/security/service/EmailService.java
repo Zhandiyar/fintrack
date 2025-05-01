@@ -11,6 +11,7 @@ import okhttp3.Response;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -18,17 +19,21 @@ import java.util.Map;
 @Service
 public class EmailService {
 
-    @Value("${resend.api.key}")
-    private String resendApiKey;
-    private static final String API_URL = "https://api.resend.com/emails";
+    @Value("${mailersend.api.key}")
+    private String mailerSendApiKey;
+
+    private static final String API_URL = "https://api.mailersend.com/v1/email";
+    private static final String FROM_EMAIL = "support@fin-track.pro";
+    private static final String FROM_NAME = "FinTrack";
+
     private final OkHttpClient client = new OkHttpClient();
     private final ObjectMapper mapper = new ObjectMapper();
 
     public void sendSimpleMessage(String to, String subject, String text) {
         try {
-            Map<String, String> body = Map.of(
-                    "from", "FinTrack <onboarding@resend.dev>",
-                    "to", to,
+            Map<String, Object> body = Map.of(
+                    "from", Map.of("email", FROM_EMAIL, "name", FROM_NAME),
+                    "to", List.of(Map.of("email", to)),
                     "subject", subject,
                     "text", text
             );
@@ -40,7 +45,7 @@ public class EmailService {
 
             Request request = new Request.Builder()
                     .url(API_URL)
-                    .addHeader("Authorization", "Bearer " + resendApiKey)
+                    .addHeader("Authorization", "Bearer " + mailerSendApiKey)
                     .addHeader("Content-Type", "application/json")
                     .post(requestBody)
                     .build();
@@ -48,15 +53,14 @@ public class EmailService {
             try (Response response = client.newCall(request).execute()) {
                 if (!response.isSuccessful()) {
                     String error = response.body() != null ? response.body().string() : "No response body";
-                    log.error("Resend error response: {}", error);
+                    log.error("MailerSend error: {}", error);
                     throw new RuntimeException("Ошибка при отправке письма");
                 }
-
                 log.info("Письмо успешно отправлено на {}", to);
             }
 
         } catch (Exception e) {
-            log.error("Ошибка при отправке письма", e);
+            log.error("Ошибка при отправке письма через MailerSend", e);
             throw new RuntimeException("Ошибка при отправке письма", e);
         }
     }

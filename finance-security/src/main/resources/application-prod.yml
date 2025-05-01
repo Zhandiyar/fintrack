@@ -21,9 +21,9 @@ spring:
     enabled: true
     baseline-on-migrate: true
 
-mailersend:
+resend:
   api:
-    key: ${MAILERSEND_API_KEY}
+    key: ${RESEND_API_KEY}
 
 server:
   port: 8080

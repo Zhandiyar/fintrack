@@ -19,21 +19,17 @@ import java.util.Map;
 @Service
 public class EmailService {
 
-    @Value("${mailersend.api.key}")
-    private String mailerSendApiKey;
-
-    private static final String API_URL = "https://api.mailersend.com/v1/email";
-    private static final String FROM_EMAIL = "support@fin-track.pro";
-    private static final String FROM_NAME = "FinTrack";
-
+    @Value("${resend.api.key}")
+    private String resendApiKey;
+    private static final String API_URL = "https://api.resend.com/emails";
     private final OkHttpClient client = new OkHttpClient();
     private final ObjectMapper mapper = new ObjectMapper();
 
     public void sendSimpleMessage(String to, String subject, String text) {
         try {
-            Map<String, Object> body = Map.of(
-                    "from", Map.of("email", FROM_EMAIL, "name", FROM_NAME),
-                    "to", List.of(Map.of("email", to)),
+            Map<String, String> body = Map.of(
+                    "from", "FinTrack <support@fin-track.pro>",
+                    "to", to,
                     "subject", subject,
                     "text", text
             );
@@ -45,22 +41,23 @@ public class EmailService {
 
             Request request = new Request.Builder()
                     .url(API_URL)
-                    .addHeader("Authorization", "Bearer " + mailerSendApiKey)
+                    .addHeader("Authorization", "Bearer " + resendApiKey)
                     .addHeader("Content-Type", "application/json")
                     .post(requestBody)
                     .build();
 
             try (Response response = client.newCall(request).execute()) {
                 if (!response.isSuccessful()) {
-                    String error = response.body() != null ? response.body().string() : "No response body";
-                    log.error("MailerSend error: {}", error);
-                    throw new RuntimeException("Ошибка при отправке письма");
+                    String responseBody = response.body() != null ? response.body().string() : "empty";
+                    log.error("Resend failed with status {}: {}", response.code(), responseBody);
+                    throw new RuntimeException("Email sending failed: " + responseBody);
                 }
+
                 log.info("Письмо успешно отправлено на {}", to);
             }
 
         } catch (Exception e) {
-            log.error("Ошибка при отправке письма через MailerSend", e);
+            log.error("Ошибка при отправке письма", e);
             throw new RuntimeException("Ошибка при отправке письма", e);
         }
     }

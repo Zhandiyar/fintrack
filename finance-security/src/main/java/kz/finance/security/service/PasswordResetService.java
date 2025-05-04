@@ -6,6 +6,8 @@ import kz.finance.security.model.UserEntity;
 import kz.finance.security.repository.PasswordResetTokenRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +20,8 @@ import java.util.UUID;
 public class PasswordResetService {
 
     private final PasswordResetTokenRepository tokenRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final UserService userService;
 
     @Transactional
     public PasswordResetTokenEntity createOrUpdatePasswordResetTokenForUser(UserEntity user) {
@@ -35,7 +39,7 @@ public class PasswordResetService {
         return saved;
     }
 
-    @Transactional
+    @Transactional(readOnly = true)
     public PasswordResetTokenEntity validatePasswordResetToken(String tokenValue) {
         PasswordResetTokenEntity token = tokenRepository.findByToken(tokenValue)
             .orElseThrow(() -> new TokenException("Invalid password reset token"));
@@ -43,5 +47,24 @@ public class PasswordResetService {
             throw new TokenException("Password reset token expired");
         }
         return token;
+    }
+
+    @Transactional
+    public void resetPassword(String tokenValue, String newPassword) {
+        PasswordResetTokenEntity tokenEntity = validatePasswordResetToken(tokenValue);
+        UserEntity user = tokenEntity.getUser();
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userService.save(user);
+        tokenRepository.delete(tokenEntity);
+        log.info("Password successfully reset for user: {}", user.getUsername());
+    }
+
+
+    // Удаление просроченных токенов каждый день в 3:00
+    @Scheduled(cron = "0 0 3 * * *", zone = "Asia/Almaty")
+    @Transactional
+    public void cleanExpiredTokens() {
+        int count = tokenRepository.deleteAllExpiredTokens(LocalDateTime.now());
+        log.info("🧹 Deleted {} expired password reset tokens", count);
     }
 }

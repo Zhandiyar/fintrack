@@ -25,9 +25,11 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Optional;
@@ -78,17 +80,17 @@ public class AuthController {
         var resetToken = passwordResetService.createOrUpdatePasswordResetTokenForUser(user);
 
         // Формируем ссылку на сброс пароля
-        String resetUrl = "https://fin-track.pro/reset-password?token=" + resetToken.getToken();
+        String deeplink = "fintrack://reset-password?token=" + resetToken.getToken();
 
         // Отправляем письмо
         String subject = "Сброс пароля / Password Reset";
 
         String text = "Здравствуйте, " + user.getUsername() + "!\n\n" +
-                      "Чтобы сбросить пароль, перейдите по ссылке:\n" + resetUrl + "\n\n" +
+                      "Чтобы сбросить пароль, перейдите по ссылке:\n" + deeplink + "\n\n" +
                       "Если вы не запрашивали сброс пароля, просто проигнорируйте это письмо.\n\n" +
                       "—\n\n" +
                       "Hello, " + user.getUsername() + "!\n\n" +
-                      "To reset your password, click the link below:\n" + resetUrl + "\n\n" +
+                      "To reset your password, click the link below:\n" + deeplink + "\n\n" +
                       "If you didn’t request a password reset, you can safely ignore this message.";
 
         emailService.sendSimpleMessage(user.getEmail(), subject, text);
@@ -96,14 +98,20 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success("Password reset link sent to your email"));
     }
 
+    @GetMapping("/reset-password")
+    public ResponseEntity<ApiResponse> validateResetToken(@RequestParam String token) {
+        try {
+            passwordResetService.validatePasswordResetToken(token);
+            return ResponseEntity.ok(ApiResponse.success("Token is valid"));
+        } catch (TokenException ex) {
+            return ResponseEntity.badRequest().body(ApiResponse.error("Invalid or expired token"));
+        }
+    }
 
     @PostMapping("/reset-password")
     public ResponseEntity<ApiResponse> resetPassword(@Valid @RequestBody ResetPasswordRequestDto request) {
         try {
-            var tokenEntity = passwordResetService.validatePasswordResetToken(request.token());
-            UserEntity user = tokenEntity.getUser();
-            user.setPassword(passwordEncoder.encode(request.newPassword()));
-            userService.save(user);
+            passwordResetService.resetPassword(request.token(), request.newPassword());
             return ResponseEntity.ok(ApiResponse.success("Password reset successful"));
         } catch (TokenException ex) {
             return ResponseEntity.badRequest().body(ApiResponse.error(ex.getMessage()));

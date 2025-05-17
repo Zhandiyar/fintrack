@@ -80,7 +80,7 @@ public class AuthController {
         var resetToken = passwordResetService.createOrUpdatePasswordResetTokenForUser(user);
 
         // Формируем ссылку на сброс пароля
-        String deeplink = "fintrack://reset-password?token=" + resetToken.getToken();
+        String deeplink = "https://fin-track.pro/reset-password?token=" + resetToken.getToken();
 
         // Отправляем письмо
         String subject = "Сброс пароля / Password Reset";

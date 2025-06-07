@@ -8,3 +8,47 @@ create table expenses (
     user_id     bigint not null,
     constraint fk_expenses_user foreign key (user_id) references users(id) on delete cascade
 );
+
+-- SEQUENCE
+CREATE SEQUENCE seq_transaction_category_id
+    START WITH 1 INCREMENT BY 50;
+
+CREATE SEQUENCE seq_transaction_id
+    START WITH 1 INCREMENT BY 50;
+
+-- Таблица категорий транзакций
+CREATE TABLE transaction_category (
+    id       BIGINT PRIMARY KEY DEFAULT nextval('seq_transaction_category_id'),
+    name_ru     VARCHAR(100) NOT NULL,
+    name_en     VARCHAR(100) NOT NULL,
+    type     VARCHAR(10) NOT NULL CHECK (type IN ('INCOME', 'EXPENSE')),
+    user_id  BIGINT,
+    icon      VARCHAR(100) NOT NULL,
+    color     VARCHAR(7)   NOT NULL,
+    system BOOLEAN     NOT NULL DEFAULT TRUE,
+    CONSTRAINT fk_transaction_category_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Индексы по категориям
+CREATE INDEX idx_category_user ON transaction_category(user_id);
+CREATE INDEX idx_category_type ON transaction_category(type);
+
+-- Таблица транзакций
+CREATE TABLE transaction (
+    id          BIGINT PRIMARY KEY DEFAULT nextval('seq_transaction_id'),
+    amount      NUMERIC(18, 2) NOT NULL,
+    date        TIMESTAMP(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    comment     VARCHAR(255),
+    type        VARCHAR(10) NOT NULL CHECK (type IN ('INCOME', 'EXPENSE')),
+    category_id BIGINT NOT NULL,
+    user_id     BIGINT NOT NULL,
+    created_at timestamp not null default current_timestamp,
+    updated_at timestamp not null default current_timestamp,
+    CONSTRAINT fk_transaction_category FOREIGN KEY (category_id) REFERENCES transaction_category(id) ON DELETE CASCADE,
+    CONSTRAINT fk_transaction_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+-- Индексы транзакций
+CREATE INDEX idx_transaction_user ON transaction(user_id);
+CREATE INDEX idx_transaction_type ON transaction(type);
+CREATE INDEX idx_transaction_date ON transaction(date);

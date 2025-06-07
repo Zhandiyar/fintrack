@@ -6,17 +6,10 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 public record ApiResponse(
     boolean success,
     String message,
+    Integer code,
     Object data
 ) {
-    public static ApiResponse success(String message, Object data) {
-        return new ApiResponse(true, message, data);
-    }
-
-    public static ApiResponse success(String message) {
-        return new ApiResponse(true, message, null);
-    }
-
-    public static ApiResponse error(String message) {
-        return new ApiResponse(false, message, null);
+    public static ApiResponse error(String message, int code) {
+        return new ApiResponse(false, message, code, null);
     }
 }

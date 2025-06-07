@@ -2,15 +2,15 @@ package kz.finance.fintrack.repository;
 
 import kz.finance.fintrack.dto.CategoryExpenseDto;
 import kz.finance.fintrack.dto.ExpenseAggregationDto;
-import kz.finance.fintrack.model.ExpenseCategory;
 import kz.finance.fintrack.dto.ExpenseDto;
+import kz.finance.fintrack.dto.analytics.ChartDataDto;
+import kz.finance.fintrack.model.ExpenseCategory;
 import kz.finance.fintrack.model.ExpenseEntity;
 import kz.finance.fintrack.model.UserEntity;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import kz.finance.fintrack.dto.ChartDataDto;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -21,7 +21,7 @@ public interface ExpenseRepository extends JpaRepository<ExpenseEntity, Long> {
 
     Optional<ExpenseEntity> findByIdAndUser(Long expenseId, UserEntity currentUser);
     @Query("""
-        SELECT new kz.finance.fintrack.dto.ChartDataDto(
+        SELECT new kz.finance.fintrack.dto.analytics.ChartDataDto(
             TO_CHAR(e.date, 'Mon'), SUM(e.amount))
         FROM ExpenseEntity e
         WHERE e.user = :user AND e.date BETWEEN :start AND :end
@@ -33,7 +33,7 @@ public interface ExpenseRepository extends JpaRepository<ExpenseEntity, Long> {
                                          @Param("end") LocalDateTime end);
 
     @Query("""
-    SELECT new kz.finance.fintrack.dto.ChartDataDto(TO_CHAR(e.date, 'YYYY-MM-DD'), SUM(e.amount))
+    SELECT new kz.finance.fintrack.dto.analytics.ChartDataDto(TO_CHAR(e.date, 'YYYY-MM-DD'), SUM(e.amount))
     FROM ExpenseEntity e
     WHERE e.user = :user AND e.date BETWEEN :start AND :end
     GROUP BY TO_CHAR(e.date, 'YYYY-MM-DD')
@@ -45,7 +45,7 @@ public interface ExpenseRepository extends JpaRepository<ExpenseEntity, Long> {
 
 
     @Query("""
-        SELECT new kz.finance.fintrack.dto.ChartDataDto(
+        SELECT new kz.finance.fintrack.dto.analytics.ChartDataDto(
             TO_CHAR(e.date, 'Dy'), SUM(e.amount))
         FROM ExpenseEntity e
         WHERE e.user = :user AND e.date BETWEEN :start AND :end

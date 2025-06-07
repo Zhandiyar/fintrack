@@ -1,7 +1,6 @@
 package kz.finance.fintrack.dto;
 
 import java.math.BigDecimal;
-import java.util.Optional;
 
 public record ExpenseAggregationDto(
         BigDecimal totalExpenses,

@@ -1,7 +1,6 @@
 package kz.finance.fintrack.utils;
 
 import kz.finance.fintrack.dto.PeriodType;
-import org.hibernate.annotations.Comment;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.stereotype.Component;
 

@@ -2,11 +2,11 @@ package kz.finance.fintrack.service;
 
 import kz.finance.fintrack.dto.CategoryExpenseDetailsDto;
 import kz.finance.fintrack.dto.CategoryExpenseDto;
-import kz.finance.fintrack.dto.PeriodType;
-import kz.finance.fintrack.dto.ChartDataDto;
-import kz.finance.fintrack.model.ExpenseCategory;
 import kz.finance.fintrack.dto.ExpenseDto;
 import kz.finance.fintrack.dto.ExpenseSummaryDto;
+import kz.finance.fintrack.dto.PeriodType;
+import kz.finance.fintrack.dto.analytics.ChartDataDto;
+import kz.finance.fintrack.model.ExpenseCategory;
 import kz.finance.fintrack.model.ExpenseEntity;
 import kz.finance.fintrack.model.UserEntity;
 import kz.finance.fintrack.repository.ExpenseRepository;
@@ -173,6 +173,7 @@ public class ExpenseService {
             case YEAR -> expenseRepository.findMonthlyTotals(user, start, end);
             case MONTH -> expenseRepository.findDailyTotals(user, start, end);
             case WEEK -> expenseRepository.findWeekdayTotals(user, start, end);
+            case DAY -> expenseRepository.findWeekdayTotals(user, start, end);
         };
     }
 

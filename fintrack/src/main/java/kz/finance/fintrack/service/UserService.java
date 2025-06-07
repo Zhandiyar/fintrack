@@ -1,7 +1,5 @@
 package kz.finance.fintrack.service;
 
-import kz.finance.fintrack.exception.UserAlreadyExistsException;
-import kz.finance.fintrack.exception.UserNotFoundException;
 import kz.finance.fintrack.model.UserEntity;
 import kz.finance.fintrack.repository.UserRepository;
 import lombok.RequiredArgsConstructor;

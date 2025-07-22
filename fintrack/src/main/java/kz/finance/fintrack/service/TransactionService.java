@@ -43,6 +43,7 @@ public class TransactionService {
             Integer day,
             LocalDateTime dateFrom,
             LocalDateTime dateTo,
+            String lang,
             Pageable pageable
     ) {
         UserEntity currentUser = userService.getCurrentUser();
@@ -65,7 +66,7 @@ public class TransactionService {
         }
 
         return transactionRepository.findAll(spec, pageable)
-                .map(mapper::toDto);
+                .map(transaction -> mapper.toDto(transaction, lang));
     }
 
     @Transactional
@@ -87,7 +88,7 @@ public class TransactionService {
                 .user(currentUser)
                 .build();
 
-        return mapper.toDto(transactionRepository.save(transaction));
+        return mapper.toDto(transactionRepository.save(transaction), request.lang());
     }
 
     @Transactional
@@ -113,13 +114,13 @@ public class TransactionService {
         transaction.setType(request.type());
         transaction.setCategory(category);
 
-        return mapper.toDto(transactionRepository.save(transaction));
+        return mapper.toDto(transactionRepository.save(transaction), request.lang());
     }
 
-    public TransactionResponseDto getTransactionById(Long id) {
+    public TransactionResponseDto getTransactionById(Long id, String lang) {
         UserEntity currentUser = userService.getCurrentUser();
         return transactionRepository.findByIdAndUser(id, currentUser)
-                .map(mapper::toDto)
+                .map(entity -> mapper.toDto(entity, lang))
                 .orElseThrow(() -> new FinTrackException(BAD_REQUEST.value(), "Transaction not found"));
     }
 

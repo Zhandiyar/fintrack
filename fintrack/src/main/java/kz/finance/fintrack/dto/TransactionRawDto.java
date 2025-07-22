@@ -5,7 +5,7 @@ import kz.finance.fintrack.model.TransactionType;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
-public record LocalizedTransactionResponseDto(
+public record TransactionRawDto(
         Long id,
         BigDecimal amount,
         LocalDateTime date,
@@ -13,6 +13,13 @@ public record LocalizedTransactionResponseDto(
         LocalDateTime updatedAt,
         String comment,
         TransactionType type,
-        TransactionCategoryDto category
+        Long categoryId,
+        String categoryNameRu,
+        String categoryNameEn,
+        String categoryIcon,
+        String categoryColor
 ) {
+    public String getCategoryName(String lang) {
+        return "en".equalsIgnoreCase(lang) ? categoryNameEn : categoryNameRu;
+    }
 }

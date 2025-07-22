@@ -13,11 +13,6 @@ public record TransactionResponseDto(
     LocalDateTime updatedAt,
     String comment,
     TransactionType type,
-    Long categoryId,
-    String categoryNameRu,
-    String categoryNameEn
-) {
-    public String getCategoryName(String lang) {
-        return "en".equalsIgnoreCase(lang) ? categoryNameEn : categoryNameRu;
-    }
+    TransactionCategoryDto category
+    ) {
 }

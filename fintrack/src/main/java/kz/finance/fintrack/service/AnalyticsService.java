@@ -2,7 +2,8 @@ package kz.finance.fintrack.service;
 
 import kz.finance.fintrack.dto.LocalizedTransactionResponseDto;
 import kz.finance.fintrack.dto.PeriodType;
-import kz.finance.fintrack.dto.TransactionResponseDto;
+import kz.finance.fintrack.dto.TransactionCategoryDto;
+import kz.finance.fintrack.dto.TransactionRawDto;
 import kz.finance.fintrack.dto.analytics.AnalyticsCategoriesDto;
 import kz.finance.fintrack.dto.analytics.AnalyticsSummaryDto;
 import kz.finance.fintrack.dto.analytics.CategorySummaryDto;
@@ -51,7 +52,7 @@ public class AnalyticsService {
 
         BigDecimal balance = stats.totalIncome().subtract(stats.totalExpense());
 
-        List<TransactionResponseDto> recentTransactions =
+        List<TransactionRawDto> recentTransactions =
                 transactionRepository.findRecentTransactions(currentUser, PageRequest.of(0, 5));
 
         List<LocalizedTransactionResponseDto> localizedTransactions =
@@ -64,8 +65,12 @@ public class AnalyticsService {
                                 t.updatedAt(),
                                 t.comment(),
                                 t.type(),
-                                t.categoryId(),
-                                t.getCategoryName(lang)
+                                new TransactionCategoryDto(
+                                        t.categoryId(),
+                                        t.getCategoryName(lang),
+                                        t.categoryIcon(),
+                                        t.categoryColor()
+                                )
                         ))
                         .toList();
 

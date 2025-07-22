@@ -1,6 +1,7 @@
 package kz.finance.fintrack.dto;
 
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import kz.finance.fintrack.model.TransactionType;
 
@@ -23,5 +24,8 @@ public record TransactionRequestDto(
     TransactionType type,
     
     @NotNull(message = "Категория обязательна")
-    Long categoryId
+    Long categoryId,
+
+    @Pattern(regexp = "^(ru|en)$", message = "Недопустимый язык")
+    String lang
 ) {} 

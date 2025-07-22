@@ -1,12 +1,15 @@
 package kz.finance.fintrack.repository;
 
-import kz.finance.fintrack.dto.TransactionResponseDto;
+import kz.finance.fintrack.dto.TransactionRawDto;
 import kz.finance.fintrack.dto.analytics.AnalyticsStatsDto;
 import kz.finance.fintrack.dto.analytics.CategorySummaryRawDto;
 import kz.finance.fintrack.dto.analytics.DashboardStatsDto;
 import kz.finance.fintrack.model.TransactionEntity;
 import kz.finance.fintrack.model.UserEntity;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
@@ -19,10 +22,14 @@ import java.util.Optional;
 
 @Repository
 public interface TransactionRepository extends JpaRepository<TransactionEntity, Long>, TransactionRepositoryCustom, JpaSpecificationExecutor<TransactionEntity> {
+    @Override
+    @EntityGraph(attributePaths = {"category"})
+    Page<TransactionEntity> findAll(Specification<TransactionEntity> spec, Pageable pageable);
+
     Optional<TransactionEntity> findByIdAndUser(Long id, UserEntity user);
 
     @Query("""
-                SELECT new kz.finance.fintrack.dto.TransactionResponseDto(
+                SELECT new kz.finance.fintrack.dto.TransactionRawDto(
                     t.id,
                     t.amount,
                     t.date,
@@ -32,14 +39,16 @@ public interface TransactionRepository extends JpaRepository<TransactionEntity, 
                     t.type,
                     c.id,
                     c.nameRu,
-                    c.nameEn
+                    c.nameEn,
+                    c.icon,
+                    c.color
                 )
                 FROM TransactionEntity t
                 JOIN t.category c
                 WHERE t.user = :user
                 ORDER BY t.date DESC
             """)
-    List<TransactionResponseDto> findRecentTransactions(@Param("user") UserEntity user, Pageable pageable);
+    List<TransactionRawDto> findRecentTransactions(@Param("user") UserEntity user, Pageable pageable);
 
 
     @Query("""

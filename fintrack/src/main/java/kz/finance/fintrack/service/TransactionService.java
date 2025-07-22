@@ -1,5 +1,6 @@
 package kz.finance.fintrack.service;
 
+import kz.finance.fintrack.dto.PeriodType;
 import kz.finance.fintrack.dto.TransactionRequestDto;
 import kz.finance.fintrack.dto.TransactionResponseDto;
 import kz.finance.fintrack.exception.FinTrackException;
@@ -9,12 +10,17 @@ import kz.finance.fintrack.model.TransactionType;
 import kz.finance.fintrack.model.UserEntity;
 import kz.finance.fintrack.repository.TransactionCategoryRepository;
 import kz.finance.fintrack.repository.TransactionRepository;
+import kz.finance.fintrack.utils.DateRangeResolver;
+import kz.finance.fintrack.utils.TransactionSpecificationUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 
@@ -28,21 +34,37 @@ public class TransactionService {
     private final UserService userService;
     private final TransactionMapper mapper;
 
-    public Page<TransactionResponseDto> getUserTransactions(Pageable pageable) {
+    public Page<TransactionResponseDto> getUserTransactionsWithFilters(
+            TransactionType type,
+            Long categoryId,
+            PeriodType periodType,
+            Integer year,
+            Integer month,
+            Integer day,
+            LocalDateTime dateFrom,
+            LocalDateTime dateTo,
+            Pageable pageable
+    ) {
         UserEntity currentUser = userService.getCurrentUser();
-        return transactionRepository.findByUser(currentUser, pageable)
-                .map(mapper::toDto);
-    }
 
-    public Page<TransactionResponseDto> getUserTransactionsByType(TransactionType type, Pageable pageable) {
-        UserEntity currentUser = userService.getCurrentUser();
-        return transactionRepository.findByUserAndType(currentUser, type, pageable)
-                .map(mapper::toDto);
-    }
+        Specification<TransactionEntity> spec = Specification.where(TransactionSpecificationUtil.userEquals(currentUser));
 
-    public Page<TransactionResponseDto> getUserTransactionsByCategory(Long categoryId, Pageable pageable) {
-        UserEntity currentUser = userService.getCurrentUser();
-        return transactionRepository.findByUserAndCategory_Id(currentUser, categoryId, pageable)
+        if (type != null) {
+            spec = spec.and(TransactionSpecificationUtil.typeEquals(type));
+        }
+        if (categoryId != null) {
+            spec = spec.and(TransactionSpecificationUtil.categoryEquals(categoryId));
+        }
+
+        // Используем DateRangeResolver только если periodType задан
+        if (periodType != null) {
+            var range = DateRangeResolver.resolve(periodType, year, month, day);
+            spec = spec.and(TransactionSpecificationUtil.dateBetween(range.start(), range.end()));
+        } else if (dateFrom != null || dateTo != null) {
+            spec = spec.and(TransactionSpecificationUtil.dateBetween(dateFrom, dateTo));
+        }
+
+        return transactionRepository.findAll(spec, pageable)
                 .map(mapper::toDto);
     }
 

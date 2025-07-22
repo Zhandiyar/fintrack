@@ -4,8 +4,9 @@ import java.math.BigDecimal;
 
 public record CategorySummaryDto(
         Long categoryId,
-        String categoryNameRu,
-        String categoryNameEn,
-        BigDecimal totalIncome,
-        BigDecimal totalExpense
+        String categoryName,
+        String icon,
+        String color,
+        BigDecimal amount,
+        BigDecimal percent
 ) {}

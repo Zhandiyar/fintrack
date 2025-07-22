@@ -1,16 +1,14 @@
 package kz.finance.fintrack.repository;
 
 import kz.finance.fintrack.dto.TransactionResponseDto;
-import kz.finance.fintrack.dto.analytics.AnalyticsCategoryTotalDto;
 import kz.finance.fintrack.dto.analytics.AnalyticsStatsDto;
+import kz.finance.fintrack.dto.analytics.CategorySummaryRawDto;
 import kz.finance.fintrack.dto.analytics.DashboardStatsDto;
-import kz.finance.fintrack.model.CategorySummaryProjection;
 import kz.finance.fintrack.model.TransactionEntity;
-import kz.finance.fintrack.model.TransactionType;
 import kz.finance.fintrack.model.UserEntity;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -20,36 +18,7 @@ import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface TransactionRepository extends JpaRepository<TransactionEntity, Long>, TransactionRepositoryCustom {
-    @Query("""
-                SELECT t FROM TransactionEntity t
-                WHERE t.user = :user
-                ORDER BY t.date DESC
-            """)
-    Page<TransactionEntity> findByUser(@Param("user") UserEntity user, Pageable pageable);
-
-    @Query("""
-                SELECT t FROM TransactionEntity t
-                WHERE t.user = :user AND t.type = :type
-                ORDER BY t.date DESC
-            """)
-    Page<TransactionEntity> findByUserAndType(
-            @Param("user") UserEntity user,
-            @Param("type") TransactionType type,
-            Pageable pageable
-    );
-
-    @Query("""
-                SELECT t FROM TransactionEntity t
-                WHERE t.user = :user AND t.category.id = :categoryId
-                ORDER BY t.date DESC
-            """)
-    Page<TransactionEntity> findByUserAndCategory_Id(
-            @Param("user") UserEntity user,
-            @Param("categoryId") Long categoryId,
-            Pageable pageable
-    );
-
+public interface TransactionRepository extends JpaRepository<TransactionEntity, Long>, TransactionRepositoryCustom, JpaSpecificationExecutor<TransactionEntity> {
     Optional<TransactionEntity> findByIdAndUser(Long id, UserEntity user);
 
     @Query("""
@@ -112,74 +81,37 @@ public interface TransactionRepository extends JpaRepository<TransactionEntity, 
             @Param("prevEnd") LocalDateTime prevEnd
     );
 
-    @Query(
-            value = """
-                    SELECT 
-                        c.id AS categoryId,
-                        c.name_ru AS nameRu,
-                        c.name_en AS nameEn,
-                        COALESCE(SUM(CASE WHEN t.type = 'INCOME' THEN t.amount ELSE 0 END), 0) AS totalIncome,
-                        COALESCE(SUM(CASE WHEN t.type = 'EXPENSE' THEN t.amount ELSE 0 END), 0) AS totalExpense
-                    FROM transaction t
-                    JOIN transaction_category c ON t.category_id = c.id
-                    WHERE t.user_id = :userId AND t.date BETWEEN :start AND :end
-                    GROUP BY c.id, c.name_ru, c.name_en
-                    ORDER BY
-                        CASE :lang
-                            WHEN 'en' THEN c.name_en
-                            ELSE c.name_ru
-                        END
-                    """,
-            nativeQuery = true
-    )
-    List<CategorySummaryProjection> getCategorySummaryNative(
-            @Param("userId") Long userId,
-            @Param("start") LocalDateTime start,
-            @Param("end") LocalDateTime end,
-            @Param("lang") String lang
-    );
-
     @Query("""
-                SELECT new kz.finance.fintrack.dto.analytics.AnalyticsCategoryTotalDto(
+                SELECT new kz.finance.fintrack.dto.analytics.CategorySummaryRawDto(
+                    c.id,
+                    c.nameRu,
+                    c.nameEn,
+                    c.icon,
+                    c.color,
                     COALESCE(SUM(CASE WHEN t.type = 'INCOME' THEN t.amount ELSE 0 END), 0),
                     COALESCE(SUM(CASE WHEN t.type = 'EXPENSE' THEN t.amount ELSE 0 END), 0)
                 )
                 FROM TransactionEntity t
                 JOIN t.category c
-                WHERE t.user = :user AND
-                      ((:lang = 'ru' AND c.nameRu = :categoryName) OR
-                       (:lang = 'en' AND c.nameEn = :categoryName)) AND
-                      t.date BETWEEN :start AND :end
+                WHERE t.user.id = :userId
+                  AND t.date BETWEEN :start AND :end
+                GROUP BY c.id, c.nameRu, c.nameEn
             """)
-    AnalyticsCategoryTotalDto getCategoryTotals(
-            @Param("user") UserEntity user,
-            @Param("categoryName") String categoryName,
+    List<CategorySummaryRawDto> getCategorySummary(
+            @Param("userId") Long userId,
             @Param("start") LocalDateTime start,
-            @Param("end") LocalDateTime end,
-            @Param("lang") String lang
+            @Param("end") LocalDateTime end
     );
 
-
-//    @Query(value = """
-//                SELECT
-//                    TO_CHAR(t.date, :format) AS date,
-//                    COALESCE(SUM(CASE WHEN t.type = 'INCOME' THEN t.amount ELSE 0 END), 0) AS income,
-//                    COALESCE(SUM(CASE WHEN t.type = 'EXPENSE' THEN t.amount ELSE 0 END), 0) AS expense
-//                FROM transaction t
-//                JOIN transaction_category c ON t.category_id = c.id
-//                WHERE t.user_id = :userId AND
-//                      ( (:lang = 'ru' AND c.name_ru = :categoryName) OR
-//                        (:lang = 'en' AND c.name_en = :categoryName) ) AND
-//                      t.date BETWEEN :start AND :end
-//                GROUP BY TO_CHAR(t.date, :format)
-//                ORDER BY TO_CHAR(t.date, :format)
-//            """, nativeQuery = true)
-//    List<CategoryChartPointProjection> getCategoryChartRawData(
-//            @Param("userId") Long userId,
-//            @Param("categoryName") String categoryName,
-//            @Param("start") LocalDateTime start,
-//            @Param("end") LocalDateTime end,
-//            @Param("format") String format,
-//            @Param("lang") String lang
-//    );
+    @Query("""
+                SELECT t FROM TransactionEntity t
+                WHERE t.user.id = :userId
+                AND t.date >= :from AND t.date < :to
+                ORDER BY t.date
+            """)
+    List<TransactionEntity> findAllByUserIdAndMonth(
+            @Param("userId") Long userId,
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to
+    );
 }

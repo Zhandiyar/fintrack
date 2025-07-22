@@ -4,12 +4,11 @@ import kz.finance.fintrack.dto.LocalizedTransactionResponseDto;
 import kz.finance.fintrack.dto.PeriodType;
 import kz.finance.fintrack.dto.TransactionResponseDto;
 import kz.finance.fintrack.dto.analytics.AnalyticsCategoriesDto;
-import kz.finance.fintrack.dto.analytics.AnalyticsCategoryDto;
 import kz.finance.fintrack.dto.analytics.AnalyticsSummaryDto;
 import kz.finance.fintrack.dto.analytics.CategorySummaryDto;
+import kz.finance.fintrack.dto.analytics.CategorySummaryRawDto;
 import kz.finance.fintrack.dto.analytics.DashboardDto;
 import kz.finance.fintrack.dto.analytics.DashboardStatsDto;
-import kz.finance.fintrack.model.CategorySummaryProjection;
 import kz.finance.fintrack.model.UserEntity;
 import kz.finance.fintrack.repository.TransactionRepository;
 import kz.finance.fintrack.utils.DateRangeResolver;
@@ -22,6 +21,7 @@ import java.math.RoundingMode;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.Comparator;
 import java.util.List;
 
 @Service
@@ -65,7 +65,7 @@ public class AnalyticsService {
                                 t.comment(),
                                 t.type(),
                                 t.categoryId(),
-                                t.getCategoryName(lang) // 👈 вот тут локализация
+                                t.getCategoryName(lang)
                         ))
                         .toList();
 
@@ -86,8 +86,10 @@ public class AnalyticsService {
 
     public AnalyticsSummaryDto getTransactionSummary(LocalDateTime start, LocalDateTime end, PeriodType periodType) {
         UserEntity currentUser = userService.getCurrentUser();
-        LocalDateTime previousStart = start.minus(Duration.between(start, end));
+
+        Duration periodLength = Duration.between(start, end);
         LocalDateTime previousEnd = start;
+        LocalDateTime previousStart = previousEnd.minus(periodLength);
 
         var stats = transactionRepository.getSummaryStats(currentUser, start, end, previousStart, previousEnd);
 
@@ -95,7 +97,7 @@ public class AnalyticsService {
         Double expenseChange = calculatePercentageChange(stats.previousExpense(), stats.currentExpense());
 
         var chartData = transactionRepository.getChartData(currentUser.getId(), start, end, periodType);
-        BigDecimal netIncome = stats.currentIncome().subtract(stats.currentExpense()); // 💰 расчёт баланса
+        BigDecimal netIncome = stats.currentIncome().subtract(stats.currentExpense());
 
         return new AnalyticsSummaryDto(
                 stats.currentIncome(),
@@ -110,43 +112,60 @@ public class AnalyticsService {
     public AnalyticsCategoriesDto getCategoriesAnalytics(LocalDateTime start, LocalDateTime end, String lang) {
         UserEntity user = userService.getCurrentUser();
 
-        List<CategorySummaryProjection> rawData = transactionRepository.getCategorySummaryNative(
-                user.getId(), start, end, lang
+        List<CategorySummaryRawDto> rawData = transactionRepository.getCategorySummary(
+                user.getId(), start, end
         );
+        BigDecimal totalIncome = calculateTotalIncome(rawData);
+        BigDecimal totalExpense = calculateTotalExpense(rawData);
 
-        List<CategorySummaryDto> allData = rawData.stream()
-                .map(p -> new CategorySummaryDto(
-                        p.getCategoryId(),
-                        p.getNameRu(),
-                        p.getNameEn(),
-                        p.getTotalIncome(),
-                        p.getTotalExpense()
-                ))
-                .toList();
+        List<CategorySummaryDto> income = mapIncomeCategories(rawData, totalIncome, lang);
+        List<CategorySummaryDto> expense = mapExpenseCategories(rawData, totalExpense, lang);
 
-        List<CategorySummaryDto> income = allData.stream()
-                .filter(dto -> dto.totalIncome().compareTo(BigDecimal.ZERO) > 0)
-                .toList();
-
-        List<CategorySummaryDto> expense = allData.stream()
-                .filter(dto -> dto.totalExpense().compareTo(BigDecimal.ZERO) > 0)
-                .toList();
-
-        return new AnalyticsCategoriesDto(income, expense);
+        return new AnalyticsCategoriesDto(totalIncome, totalExpense, income, expense);
     }
 
-    public AnalyticsCategoryDto getCategoryAnalytics(
-            String categoryName, LocalDateTime start, LocalDateTime end, PeriodType periodType, String lang) {
+    private BigDecimal calculateTotalIncome(List<CategorySummaryRawDto> rawData) {
+        return rawData.stream()
+                .map(CategorySummaryRawDto::totalIncome)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
 
-        UserEntity user = userService.getCurrentUser();
+    private BigDecimal calculateTotalExpense(List<CategorySummaryRawDto> rawData) {
+        return rawData.stream()
+                .map(CategorySummaryRawDto::totalExpense)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
 
-        var totals = transactionRepository.getCategoryTotals(user, categoryName, start, end, lang);
+    private List<CategorySummaryDto> mapIncomeCategories(List<CategorySummaryRawDto> rawData, BigDecimal totalIncome, String lang) {
+        return rawData.stream()
+                .filter(dto -> dto.totalIncome().compareTo(BigDecimal.ZERO) > 0)
+                .map(dto -> new CategorySummaryDto(
+                        dto.categoryId(),
+                        lang.equals("en") ? dto.categoryNameEn() : dto.categoryNameRu(),
+                        dto.icon(),
+                        dto.color(),
+                        dto.totalIncome(),
+                        totalIncome.compareTo(BigDecimal.ZERO) == 0 ? BigDecimal.ZERO :
+                                dto.totalIncome().multiply(BigDecimal.valueOf(100)).divide(totalIncome, 2, RoundingMode.HALF_UP)
+                ))
+                .sorted(Comparator.comparing(CategorySummaryDto::categoryName))
+                .toList();
+    }
 
-        var chart = transactionRepository.getCategoryChartPoints(
-                user.getId(), categoryName, start, end, periodType, lang
-        );
-
-        return new AnalyticsCategoryDto(categoryName, totals.income(), totals.expense(), chart);
+    private List<CategorySummaryDto> mapExpenseCategories(List<CategorySummaryRawDto> rawData, BigDecimal totalExpense, String lang) {
+        return rawData.stream()
+                .filter(dto -> dto.totalExpense().compareTo(BigDecimal.ZERO) > 0)
+                .map(dto -> new CategorySummaryDto(
+                        dto.categoryId(),
+                        lang.equals("en") ? dto.categoryNameEn() : dto.categoryNameRu(),
+                        dto.icon(),
+                        dto.color(),
+                        dto.totalExpense(),
+                        totalExpense.compareTo(BigDecimal.ZERO) == 0 ? BigDecimal.ZERO :
+                                dto.totalExpense().multiply(BigDecimal.valueOf(100)).divide(totalExpense, 2, RoundingMode.HALF_UP)
+                ))
+                .sorted(Comparator.comparing(CategorySummaryDto::categoryName))
+                .toList();
     }
 
     private Double calculatePercentageChange(BigDecimal previous, BigDecimal current) {
@@ -160,14 +179,5 @@ public class AnalyticsService {
                 .multiply(BigDecimal.valueOf(100))
                 .divide(previous, 2, RoundingMode.HALF_UP)
                 .doubleValue();
-    }
-
-    private String getFormatByPeriodType(PeriodType type) {
-        return switch (type) {
-            case DAY -> "YYYY-MM-DD";
-            case WEEK -> "IYYY-IW";
-            case MONTH -> "YYYY-MM";
-            case YEAR -> "YYYY";
-        };
     }
 }

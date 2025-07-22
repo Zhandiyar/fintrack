@@ -8,13 +8,4 @@ import java.util.List;
 
 public interface TransactionRepositoryCustom {
     List<ChartPointDto> getChartData(Long userId, LocalDateTime start, LocalDateTime end, PeriodType periodType);
-
-    List<ChartPointDto> getCategoryChartPoints(
-            Long userId,
-            String categoryName,
-            LocalDateTime start,
-            LocalDateTime end,
-            PeriodType periodType,
-            String lang
-    );
 }

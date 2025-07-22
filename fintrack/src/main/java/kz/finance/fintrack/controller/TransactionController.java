@@ -1,6 +1,7 @@
 package kz.finance.fintrack.controller;
 
 import jakarta.validation.Valid;
+import kz.finance.fintrack.dto.PeriodType;
 import kz.finance.fintrack.dto.TransactionRequestDto;
 import kz.finance.fintrack.dto.TransactionResponseDto;
 import kz.finance.fintrack.model.TransactionType;
@@ -18,6 +19,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDateTime;
+
 @RestController
 @RequestMapping("/api/transactions")
 @RequiredArgsConstructor
@@ -29,18 +32,20 @@ public class TransactionController {
     public Page<TransactionResponseDto> getTransactions(
             @RequestParam(required = false) TransactionType type,
             @RequestParam(required = false) Long categoryId,
+            @RequestParam(required = false) PeriodType periodType,
+            @RequestParam(required = false) Integer year,
+            @RequestParam(required = false) Integer month,
+            @RequestParam(required = false) Integer day,
+            @RequestParam(required = false) LocalDateTime dateFrom,
+            @RequestParam(required = false) LocalDateTime dateTo,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
         var pageable = PageRequest.of(page, size);
-        
-        if (type != null) {
-            return transactionService.getUserTransactionsByType(type, pageable);
-        } else if (categoryId != null) {
-            return transactionService.getUserTransactionsByCategory(categoryId, pageable);
-        } else {
-            return transactionService.getUserTransactions(pageable);
-        }
+
+        return transactionService.getUserTransactionsWithFilters(
+                 type, categoryId, periodType, year, month, day, dateFrom, dateTo, pageable
+        );
     }
 
     @PostMapping

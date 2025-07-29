@@ -1,3 +1,3 @@
 package kz.finance.fintrack.dto.ai;
 
-public record FinanceAnalyzeRequest(int year, int month) {}
+public record FinanceAnalyzeRequest(int year, int month, String currency) {}

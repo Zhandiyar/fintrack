@@ -5,10 +5,12 @@ import kz.finance.fintrack.client.DeepSeekFeignClient;
 import kz.finance.fintrack.client.DeepSeekMessage;
 import kz.finance.fintrack.client.DeepSeekRequest;
 import kz.finance.fintrack.client.DeepSeekResponse;
+import kz.finance.fintrack.dto.ai.FinanceAnalyzeResponse;
 import kz.finance.fintrack.model.TransactionEntity;
 import kz.finance.fintrack.model.TransactionType;
 import kz.finance.fintrack.model.UserEntity;
 import kz.finance.fintrack.repository.TransactionRepository;
+import kz.finance.fintrack.utils.CurrencyUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -36,7 +38,9 @@ public class AiFinanceAnalysisService {
     private String deepSeekApiKey;
 
     @Transactional(readOnly = true)
-    public String analyzeMonth(int year, int month) {
+    public FinanceAnalyzeResponse analyzeMonth(int year, int month, String currency) {
+        if (currency == null || currency.isBlank()) currency = "KZT";
+
         UserEntity user = userService.getCurrentUser();
 
         // Границы месяца
@@ -46,11 +50,11 @@ public class AiFinanceAnalysisService {
 
         List<TransactionEntity> txs = transactionRepository.findAllByUserIdAndMonth(user.getId(), from, to);
         if (txs.isEmpty()) {
-            return "Нет данных за выбранный месяц.";
+            return new FinanceAnalyzeResponse("Нет данных за выбранный месяц.");
         }
 
-        String summary = buildSummary(txs);
-        String prompt = buildPrompt(summary, ym, txs.size());
+        String summary = buildSummary(txs, currency);
+        String prompt = buildPrompt(summary, ym, txs.size(), currency);
 
         log.info("AI PROMPT:\n{}", prompt);
 
@@ -62,12 +66,12 @@ public class AiFinanceAnalysisService {
 
             DeepSeekResponse response = deepSeekFeignClient.chatCompletion("Bearer " + deepSeekApiKey, request);
 
-            return response.choices().isEmpty()
+            return new FinanceAnalyzeResponse(response.choices().isEmpty()
                     ? "AI не вернул ответ, попробуйте позже."
-                    : response.choices().get(0).message().content();
+                    : response.choices().get(0).message().content());
         } catch (FeignException e) {
             if (e.status() == 402) {
-                return "Баланс на DeepSeek исчерпан. Обратитесь к администратору.";
+                return new FinanceAnalyzeResponse( "Технические работы на сервере AI. Попробуйте позже — мы уже всё чиним!");
             }
             log.error("Ошибка обращения к DeepSeek: {}", e.getMessage(), e);
             throw e;
@@ -75,44 +79,51 @@ public class AiFinanceAnalysisService {
     }
 
     /** Генерация адаптивного prompt в зависимости от числа транзакций */
-    private String buildPrompt(String summary, YearMonth ym, int txCount) {
+    private String buildPrompt(String summary, YearMonth ym, int txCount, String currency) {
         String period = "%s %d".formatted(
                 ym.getMonth().getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.forLanguageTag("ru")),
                 ym.getYear()
         );
+        String symbol = CurrencyUtil.getSymbol(currency);
 
         if (txCount < 4) {
             // Мало транзакций — быстрый лайфхак + мотивация
             return """
                 Ты — персональный AI-помощник в приложении Fintrack.
 
-                Вот короткая история пользователя за %s:
+                Вот короткая история пользователя за %s (%s):
+
                 %s
 
+                Все суммы указаны в %s.
                 1. Проанализируй траты и доходы, дай 1 яркий лайфхак для экономии — очень кратко!
                 2. Ответь дружелюбно, добавь эмодзи и короткую позитивную мотивацию (1-2 предложения).
                 3. Всегда делай ответ разным и интересным!
-            """.formatted(period, summary);
+            """.formatted(period, symbol, summary, symbol);
         } else {
             // Стандартный wow-анализ с челленджами
             return """
                 Ты — персональный AI-помощник по финансам в приложении Fintrack.
 
-                Данные пользователя за %s:
+                Данные пользователя за %s (%s):
+
                 %s
 
+                Все суммы указаны в %s.
                 1. Проанализируй баланс, выдели необычные/крупные траты, дай краткий вывод.
                 2. Напиши на русском — коротко, дружелюбно, с эмодзи.
                 3. Придумай 2 новых лайфхака, челлендж или мини-игру (например, “угадай лишнюю трату”, “выбери трату месяца”).
                 4. Иногда добавляй неожиданный совет или интересный факт о финансах!
                 5. В конце — мотивация (“каждый месяц мы придумаем что-то новенькое!”, “попробуй анализ еще раз — результат может удивить!”).
                 6. Ответ всегда делай разным!
-            """.formatted(period, summary);
+            """.formatted(period, symbol, summary, symbol);
         }
     }
 
     /** Формирование summary: топ-доходы, топ-расходы, категории, итоговые суммы */
-    private String buildSummary(List<TransactionEntity> txs) {
+    private String buildSummary(List<TransactionEntity> txs, String currency) {
+        String symbol = CurrencyUtil.getSymbol(currency);
+
         var topIncome = txs.stream()
                 .filter(tx -> tx.getType() == TransactionType.INCOME)
                 .sorted(Comparator.comparing(TransactionEntity::getAmount).reversed())
@@ -132,21 +143,24 @@ public class AiFinanceAnalysisService {
                 ));
 
         var categorySummary = byCategory.entrySet().stream()
-                .map(e -> String.format("- %s: %s ₽",
+                .map(e -> String.format("- %s: %s %s",
                         e.getKey(),
-                        e.getValue().stream().map(BigDecimal::toPlainString).collect(Collectors.joining(", "))))
+                        e.getValue().stream().map(amount -> amount.toPlainString() + " " + symbol).collect(Collectors.joining(", ")),
+                        ""))
                 .collect(Collectors.joining("\n"));
 
         var topIncomeSummary = topIncome.isEmpty() ? "—" : topIncome.stream()
-                .map(tx -> String.format("- %s ₽ (%s, %s)",
+                .map(tx -> String.format("- %s %s (%s, %s)",
                         tx.getAmount().setScale(0, RoundingMode.DOWN),
+                        symbol,
                         tx.getCategory().getNameRu(),
                         tx.getComment() == null ? "" : tx.getComment()))
                 .collect(Collectors.joining("\n"));
 
         var topExpenseSummary = topExpense.isEmpty() ? "—" : topExpense.stream()
-                .map(tx -> String.format("- %s ₽ (%s, %s)",
+                .map(tx -> String.format("- %s %s (%s, %s)",
                         tx.getAmount().setScale(0, RoundingMode.DOWN),
+                        symbol,
                         tx.getCategory().getNameRu(),
                         tx.getComment() == null ? "" : tx.getComment()))
                 .collect(Collectors.joining("\n"));
@@ -164,13 +178,13 @@ public class AiFinanceAnalysisService {
         var balance = totalIncome.subtract(totalExpense);
 
         return String.format(
-                "Категории расходов:\n%s\n\nТоп-3 дохода:\n%s\n\nТоп-3 расхода:\n%s\n\nВсего доходов: %s ₽\nВсего расходов: %s ₽\nБаланс: %s ₽",
+                "Категории расходов:\n%s\n\nТоп-3 дохода:\n%s\n\nТоп-3 расхода:\n%s\n\nВсего доходов: %s %s\nВсего расходов: %s %s\nБаланс: %s %s",
                 categorySummary,
                 topIncomeSummary,
                 topExpenseSummary,
-                totalIncome.toPlainString(),
-                totalExpense.toPlainString(),
-                balance.toPlainString()
+                totalIncome.toPlainString(), symbol,
+                totalExpense.toPlainString(), symbol,
+                balance.toPlainString(), symbol
         );
     }
 }

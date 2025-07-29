@@ -46,6 +46,9 @@ management:
     health:
       show-details: always
 
+deepseek:
+  api-key: ${DEEPSEEK_API_KEY}
+
 resilience4j:
   circuitbreaker:
     instances:

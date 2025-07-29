@@ -54,7 +54,7 @@ public class DateRangeResolver {
                 LocalDate end = start.with(TemporalAdjusters.lastDayOfMonth());
                 yield new DateRange(
                         start.atStartOfDay(),
-                        adjustIfInFuture(end.atTime(LocalTime.MAX))
+                        end.atTime(LocalTime.MAX)
                 );
             }
             case YEAR -> {
@@ -63,7 +63,7 @@ public class DateRangeResolver {
                 LocalDate end = start.with(TemporalAdjusters.lastDayOfYear());
                 yield new DateRange(
                         start.atStartOfDay(),
-                        adjustIfInFuture(end.atTime(LocalTime.MAX))
+                        end.atTime(LocalTime.MAX)
                 );
             }
         };

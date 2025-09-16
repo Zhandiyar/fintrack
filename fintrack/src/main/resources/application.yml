@@ -10,10 +10,18 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
+    properties:
+      hibernate.jdbc.time_zone: UTC
     show-sql: true
   security:
     jwt:
       secret: ${JWT_SECRET}
+
+google:
+  api-url:  ${GOOGLE_API_URL}
+  package-name: ${GOOGLE_PACKAGE_NAME}
+  allowed-products: ${GOOGLE_ALLOWED_PRODUCTS}
+  service-account-path:  ${GOOGLE_SERVICE_ACCOUNT_PATH}
 
 deepseek:
   api-key: ${DEEPSEEK_API_KEY}

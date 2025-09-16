@@ -100,6 +100,14 @@ services:
       - SECURITY_SERVICE_URL=http://finance-security:8080
       - LOGGING_LEVEL_ROOT=DEBUG
       - LOGGING_LEVEL_COM_FINTRACK=DEBUG
+      # --- Google (relaxed binding) ---
+      - GOOGLE_API_URL=https://androidpublisher.googleapis.com/androidpublisher/v3
+      - GOOGLE_PACKAGE_NAME=kz.finance.fintrack
+      - GOOGLE_ALLOWED_PRODUCTS=fintrack_pro_month,fintrack_pro_year
+      - GOOGLE_SERVICE_ACCOUNT_PATH=/app/secure/google-service-account.json
+    volumes:
+      # монтируем JSON ключ внутрь контейнера только для чтения
+      - /root/fintrack/secure/google-service-account.json:/app/secure/google-service-account.json:ro
     depends_on:
       - db
       - migrator

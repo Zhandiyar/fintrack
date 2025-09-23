@@ -28,12 +28,7 @@ public class GooglePlayService {
     @Value("${google.allowed-products:fintrack_pro_month,fintrack_pro_year}")
     private String allowedProductsCsv;
 
-    @Value("${google.service-account-path}")
-    private String serviceAccountPath;
-
     private final GooglePlayApiClient google;
-    private String cachedAccessToken;
-    private Instant tokenExpiry;
 
     private Set<String> allowedProducts;
 

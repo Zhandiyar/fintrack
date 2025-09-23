@@ -5,7 +5,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 
 @FeignClient(
-        name = "googlePlayApi",
+        name = "googlePlayApiClient",
         url = "${google.api-url:https://androidpublisher.googleapis.com/androidpublisher/v3}",
         configuration = GoogleFeignConfig.class
 )

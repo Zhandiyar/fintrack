@@ -11,7 +11,7 @@ import java.util.List;
 
 @Component
 @Slf4j
-public class GoogleAccessTokenService {
+public class    GoogleAccessTokenService {
 
     @Value("${google.service-account-path}")
     private String serviceAccountPath;
@@ -32,9 +32,13 @@ public class GoogleAccessTokenService {
                     .createScoped(List.of("https://www.googleapis.com/auth/androidpublisher"));
 
             credentials.refreshIfExpired();
-            cachedAccessToken = credentials.getAccessToken().getTokenValue();
-            tokenExpiry = credentials.getAccessToken().getExpirationTime().toInstant();
+            var at = credentials.getAccessToken();
+            if (at == null) {
+                at = credentials.refreshAccessToken();
+            }
 
+            cachedAccessToken = at.getTokenValue();
+            tokenExpiry = at.getExpirationTime().toInstant();
             return cachedAccessToken;
         } catch (Exception e) {
             log.error("Failed to fetch Google access token", e);

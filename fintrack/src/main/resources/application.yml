@@ -17,6 +17,11 @@ spring:
     jwt:
       secret: ${JWT_SECRET}
 
+logging:
+  level:
+    kz.finance.fintrack.client.google.GooglePlayApiClient: DEBUG
+    feign.Logger: DEBUG
+
 google:
   api-url:  ${GOOGLE_API_URL}
   package-name: ${GOOGLE_PACKAGE_NAME}

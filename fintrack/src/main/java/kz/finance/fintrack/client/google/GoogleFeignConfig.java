@@ -18,5 +18,10 @@ public class GoogleFeignConfig {
             requestTemplate.header("Authorization", "Bearer " + token);
         };
     }
+
+    @Bean
+    public feign.Logger.Level feignLoggerLevel() {
+        return feign.Logger.Level.FULL;
+    }
 }
 

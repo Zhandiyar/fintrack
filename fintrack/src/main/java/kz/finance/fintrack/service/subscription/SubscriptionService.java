@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -35,7 +36,10 @@ public class SubscriptionService {
     public EntitlementResponse verifyAndSave(VerifyRequest req, @Nullable String idemKey) {
         if (idemKey != null) {
             var cached = idemCache.get(idemKey);
-            if (cached != null) return cached;
+            if (cached != null) {
+                log.info("[IAP] idemHit key={} productId={} user={}", idemKey, req.productId(), userService.getCurrentUser().getId());
+                return cached;
+            }
         }
 
         var snap = gp.verify(req.packageName(), req.productId(), req.purchaseToken(), true);
@@ -66,20 +70,24 @@ public class SubscriptionService {
 
     @Transactional(readOnly = true)
     public EntitlementResponse myEntitlement() {
-        UserEntity user = userService.getCurrentUser();
-        return repo.findTopByUserOrderByExpiryDateDesc(user)
+        return repo.findTopByUserOrderByExpiryDateDesc(userService.getCurrentUser())
                 .map(s -> {
-                    var ent = (s.isActive())
-                            ? EntitlementStatus.ENTITLED
-                            : (s.getExpiryDate().isAfter(LocalDateTime.now())
-                            ? EntitlementStatus.IN_GRACE  // можно хранить grace-флаг отдельным полем
-                            : EntitlementStatus.EXPIRED);
-                    return new EntitlementResponse(ent.name(),
-                            s.getExpiryDate().atZone(ZoneId.systemDefault()).toInstant(),
-                            s.getProductId(), s.isAutoRenewing());
+                    var now = Instant.now();
+                    var expiry = s.getExpiryDate().atZone(ZoneOffset.UTC).toInstant();
+                    EntitlementStatus ent = now.isBefore(expiry) ? EntitlementStatus.ENTITLED : EntitlementStatus.EXPIRED;
+
+                    // мягкая синхронизация флага (необязательно)
+                    boolean shouldBeActive = (ent == EntitlementStatus.ENTITLED);
+                    if (s.isActive() != shouldBeActive) {
+                        s.setActive(shouldBeActive);
+                        repo.save(s);
+                    }
+
+                    return new EntitlementResponse(ent.name(), expiry, s.getProductId(), s.isAutoRenewing());
                 })
                 .orElse(new EntitlementResponse(EntitlementStatus.NONE.name(), null, null, false));
     }
+
 
     /** RTDN обновления (ниже — парсер). */
     @Transactional
@@ -95,10 +103,11 @@ public class SubscriptionService {
             var ent = gp.toEntitlement(snap, Instant.now());
 
             var sub = repo.findByPurchaseToken(purchaseToken).orElseGet(SubscriptionEntity::new);
-            if (sub.getId() == null) sub.setUser(userService.getCurrentUser());
             sub.setProductId(productId);
             sub.setPurchaseToken(purchaseToken);
-            sub.setPurchaseDate(snap.getStart() != null ? LocalDateTime.ofInstant(snap.getStart(), ZoneId.systemDefault()) : LocalDateTime.now());
+            sub.setPurchaseDate(snap.getStart() != null
+                    ? LocalDateTime.ofInstant(snap.getStart(), ZoneId.systemDefault())
+                    : (sub.getPurchaseDate() == null ? LocalDateTime.now() : sub.getPurchaseDate()));
             sub.setExpiryDate(LocalDateTime.ofInstant(snap.getExpiry(), ZoneId.systemDefault()));
             sub.setActive(ent == EntitlementStatus.ENTITLED || ent == EntitlementStatus.IN_GRACE);
             sub.setPurchaseState(mapToSubscriptionState(snap.getPaymentState()));
@@ -107,7 +116,7 @@ public class SubscriptionService {
             sub.setAcknowledgementState(snap.getAcknowledgementState());
             repo.save(sub);
         } catch (Exception e) {
-            log.error("RTDN sync error: {}", e.getMessage(), e);
+            log.error("RTDN sync error token={} productId={} : {}", purchaseToken, productId, e.getMessage(), e);
         }
     }
 

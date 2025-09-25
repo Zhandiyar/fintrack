@@ -1,7 +1,9 @@
 package kz.finance.fintrack.dto.subscription;
 
+import jakarta.validation.constraints.NotBlank;
+
 public record VerifyRequest(
-        String purchaseToken,
-        String productId,
-        String packageName
+       @NotBlank String purchaseToken,
+       @NotBlank String productId,
+       @NotBlank String packageName
 ) {}

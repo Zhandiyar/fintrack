@@ -11,7 +11,7 @@ import java.util.List;
 
 @Component
 @Slf4j
-public class    GoogleAccessTokenService {
+public class GoogleAccessTokenService {
 
     @Value("${google.service-account-path}")
     private String serviceAccountPath;
@@ -19,30 +19,30 @@ public class    GoogleAccessTokenService {
     private volatile String cachedAccessToken;
     private volatile Instant tokenExpiry;
 
-    public synchronized String getAccessToken() {
-        try {
-            if (cachedAccessToken != null
-                && tokenExpiry != null
-                && Instant.now().isBefore(tokenExpiry.minusSeconds(60))) {
+    public String getAccessToken() {
+        var exp = tokenExpiry;
+        var token = cachedAccessToken;
+        if (token != null && exp != null && Instant.now().isBefore(exp.minusSeconds(60))) {
+            return token;
+        }
+        synchronized (this) {
+            exp = tokenExpiry; token = cachedAccessToken;
+            if (token != null && exp != null && Instant.now().isBefore(exp.minusSeconds(60))) {
+                return token;
+            }
+            try (var in = new FileInputStream(serviceAccountPath)) {
+                var credentials = GoogleCredentials.fromStream(in)
+                        .createScoped(List.of("https://www.googleapis.com/auth/androidpublisher"));
+                credentials.refreshIfExpired();
+                var at = credentials.getAccessToken();
+                if (at == null) at = credentials.refreshAccessToken();
+                cachedAccessToken = at.getTokenValue();
+                tokenExpiry = at.getExpirationTime().toInstant();
                 return cachedAccessToken;
+            } catch (Exception e) {
+                log.error("Failed to fetch Google access token", e);
+                throw new IllegalStateException("Google access token fetch failed", e);
             }
-
-            GoogleCredentials credentials = GoogleCredentials
-                    .fromStream(new FileInputStream(serviceAccountPath))
-                    .createScoped(List.of("https://www.googleapis.com/auth/androidpublisher"));
-
-            credentials.refreshIfExpired();
-            var at = credentials.getAccessToken();
-            if (at == null) {
-                at = credentials.refreshAccessToken();
-            }
-
-            cachedAccessToken = at.getTokenValue();
-            tokenExpiry = at.getExpirationTime().toInstant();
-            return cachedAccessToken;
-        } catch (Exception e) {
-            log.error("Failed to fetch Google access token", e);
-            throw new IllegalStateException("Google access token fetch failed", e);
         }
     }
 }

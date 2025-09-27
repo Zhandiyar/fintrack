@@ -45,24 +45,21 @@ public class GooglePlayService {
         Map<String, Object> body = google.verifyPurchase(packageName, productId, purchaseToken);
         if (body == null) throw new IllegalStateException("Empty response from Google");
 
-        long expiryMs = Long.parseLong(String.valueOf(body.get("expiryTimeMillis")));
+        long expiryMs = parseLong(body.get("expiryTimeMillis"), 0L);
         Instant expiry = Instant.ofEpochMilli(expiryMs);
 
         boolean autoRenewing = Boolean.TRUE.equals(body.get("autoRenewing"));
-        int acknowledgementState = Integer.parseInt(String.valueOf(body.getOrDefault("acknowledgementState", 0)));
-        Integer paymentState = (body.get("paymentState") != null) ? Integer.valueOf(body.get("paymentState").toString()) : null;
-        Integer cancelReason = (body.get("cancelReason") != null) ? Integer.valueOf(body.get("cancelReason").toString()) : null;
+        int acknowledgementState = (int) parseLong(body.get("acknowledgementState"), 0L);
+        Integer paymentState = parseIntObj(body.get("paymentState"));
+        Integer cancelReason = parseIntObj(body.get("cancelReason"));
 
-        Instant start = null;
-        if (body.get("startTimeMillis") != null) {
-            start = Instant.ofEpochMilli(Long.parseLong(body.get("startTimeMillis").toString()));
-        }
+        Instant start = body.get("startTimeMillis") != null
+                ? Instant.ofEpochMilli(parseLong(body.get("startTimeMillis"), 0L))
+                : null;
 
-        // grace period (если есть)
-        Instant graceUntil = null;
-        if (body.get("gracePeriodUntilMillis") != null) {
-            graceUntil = Instant.ofEpochMilli(Long.parseLong(body.get("gracePeriodUntilMillis").toString()));
-        }
+        Instant graceUntil = body.get("gracePeriodUntilMillis") != null
+                ? Instant.ofEpochMilli(parseLong(body.get("gracePeriodUntilMillis"), 0L))
+                : null;
 
         // acknowledge при необходимости
         if (tryAcknowledge && acknowledgementState == 0) {
@@ -89,6 +86,15 @@ public class GooglePlayService {
         }
     }
 
+    private static long parseLong(Object v, long def) {
+        try { return v == null ? def : Long.parseLong(String.valueOf(v)); }
+        catch (Exception e) { return def; }
+    }
+    private static Integer parseIntObj(Object v) {
+        try { return v == null ? null : Integer.valueOf(String.valueOf(v)); }
+        catch (Exception e) { return null; }
+    }
+    
     /** Универсальный «снимок» Google-данных. */
     @Getter @AllArgsConstructor
     public static class GoogleSnapshot {

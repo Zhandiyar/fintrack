@@ -16,7 +16,7 @@ import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 @Entity
 @Getter
@@ -43,10 +43,10 @@ public class SubscriptionEntity {
     private String purchaseToken;
 
     @Column(nullable = false)
-    private LocalDateTime purchaseDate;
+    private Instant purchaseDate;
 
     @Column(nullable = false)
-    private LocalDateTime expiryDate;
+    private Instant expiryDate;
 
     @Column(nullable = false)
     private boolean active;

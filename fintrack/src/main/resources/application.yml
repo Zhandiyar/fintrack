@@ -13,6 +13,9 @@ spring:
     properties:
       hibernate.jdbc.time_zone: UTC
     show-sql: true
+  jackson:
+    serialization:
+      WRITE_DATES_AS_TIMESTAMPS: false
   security:
     jwt:
       secret: ${JWT_SECRET}

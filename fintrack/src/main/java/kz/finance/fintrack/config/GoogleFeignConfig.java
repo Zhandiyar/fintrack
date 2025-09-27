@@ -1,4 +1,4 @@
-package kz.finance.fintrack.client.google;
+package kz.finance.fintrack.config;
 
 import feign.FeignException;
 import feign.Logger;

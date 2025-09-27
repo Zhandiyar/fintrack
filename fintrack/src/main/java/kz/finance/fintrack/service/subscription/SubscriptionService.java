@@ -1,4 +1,5 @@
 package kz.finance.fintrack.service.subscription;
+
 import io.micrometer.common.lang.Nullable;
 import kz.finance.fintrack.dto.subscription.EntitlementResponse;
 import kz.finance.fintrack.dto.subscription.EntitlementStatus;
@@ -14,9 +15,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -43,8 +41,8 @@ public class SubscriptionService {
         }
 
         var snap = gp.verify(req.packageName(), req.productId(), req.purchaseToken(), true);
-        var now  = Instant.now();
-        var ent  = gp.toEntitlement(snap, now);
+        var now = Instant.now();
+        var ent = gp.toEntitlement(snap, now);
 
         UserEntity user = userService.getCurrentUser();
         SubscriptionEntity sub = repo.findByPurchaseToken(req.purchaseToken())
@@ -53,8 +51,8 @@ public class SubscriptionService {
         sub.setUser(user);
         sub.setProductId(snap.getProductId());
         sub.setPurchaseToken(snap.getPurchaseToken());
-        sub.setPurchaseDate(snap.getStart() != null ? LocalDateTime.ofInstant(snap.getStart(), ZoneId.systemDefault()) : LocalDateTime.now());
-        sub.setExpiryDate(LocalDateTime.ofInstant(snap.getExpiry(), ZoneId.systemDefault()));
+        sub.setPurchaseDate(snap.getStart() != null ? snap.getStart() : Instant.now());
+        sub.setExpiryDate(snap.getExpiry());
         sub.setActive(ent == EntitlementStatus.ENTITLED || ent == EntitlementStatus.IN_GRACE);
         sub.setPurchaseState(mapToSubscriptionState(snap.getPaymentState()));
         sub.setCancelReason(snap.getCancelReason());
@@ -72,12 +70,21 @@ public class SubscriptionService {
     public EntitlementResponse myEntitlement() {
         return repo.findTopByUserOrderByExpiryDateDesc(userService.getCurrentUser())
                 .map(s -> {
-                    var now = Instant.now();
-                    var expiry = s.getExpiryDate().atZone(ZoneOffset.UTC).toInstant();
-                    EntitlementStatus ent = now.isBefore(expiry) ? EntitlementStatus.ENTITLED : EntitlementStatus.EXPIRED;
+                    Instant now = Instant.now();
+                    Instant expiry = s.getExpiryDate();
 
-                    // мягкая синхронизация флага (необязательно)
-                    boolean shouldBeActive = (ent == EntitlementStatus.ENTITLED);
+                    EntitlementStatus ent;
+                    if (s.getCancelReason() != null && s.getCancelReason() == 1) {
+                        ent = EntitlementStatus.REVOKED;               // возврат/чарджбэк
+                    } else if (now.isBefore(expiry)) {
+                        ent = s.isActive() ? EntitlementStatus.ENTITLED // активна
+                                : EntitlementStatus.IN_GRACE; // доступ ещё есть, но не активна (по вашей логике)
+                    } else {
+                        ent = EntitlementStatus.EXPIRED;
+                    }
+
+                    // опционально: мягко синхронизировать признак active
+                    boolean shouldBeActive = (ent == EntitlementStatus.ENTITLED || ent == EntitlementStatus.IN_GRACE);
                     if (s.isActive() != shouldBeActive) {
                         s.setActive(shouldBeActive);
                         repo.save(s);
@@ -89,7 +96,9 @@ public class SubscriptionService {
     }
 
 
-    /** RTDN обновления (ниже — парсер). */
+    /**
+     * RTDN обновления (ниже — парсер).
+     */
     @Transactional
     public void applyRtnd(GoogleWebhookParser.DeveloperNotification n) {
         if (n.subscriptionNotification() == null) return;
@@ -106,9 +115,9 @@ public class SubscriptionService {
             sub.setProductId(productId);
             sub.setPurchaseToken(purchaseToken);
             sub.setPurchaseDate(snap.getStart() != null
-                    ? LocalDateTime.ofInstant(snap.getStart(), ZoneId.systemDefault())
-                    : (sub.getPurchaseDate() == null ? LocalDateTime.now() : sub.getPurchaseDate()));
-            sub.setExpiryDate(LocalDateTime.ofInstant(snap.getExpiry(), ZoneId.systemDefault()));
+                    ? snap.getStart()
+                    : (sub.getPurchaseDate() == null ? Instant.now() : sub.getPurchaseDate()));
+            sub.setExpiryDate(snap.getExpiry());
             sub.setActive(ent == EntitlementStatus.ENTITLED || ent == EntitlementStatus.IN_GRACE);
             sub.setPurchaseState(mapToSubscriptionState(snap.getPaymentState()));
             sub.setCancelReason(snap.getCancelReason());

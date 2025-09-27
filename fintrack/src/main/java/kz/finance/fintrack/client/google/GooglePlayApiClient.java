@@ -1,5 +1,6 @@
 package kz.finance.fintrack.client.google;
 
+import kz.finance.fintrack.config.GoogleFeignConfig;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.*;
 import java.util.Map;

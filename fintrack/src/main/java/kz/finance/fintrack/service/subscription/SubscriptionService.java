@@ -101,19 +101,29 @@ public class SubscriptionService {
      */
     @Transactional
     public void applyRtnd(GoogleWebhookParser.DeveloperNotification n) {
-        if (n.subscriptionNotification() == null) return;
+        if (n.subscriptionNotification() == null) {
+            log.warn("⚠️ RTDN without subscriptionNotification: {}", n);
+            return;
+        }
         var sn = n.subscriptionNotification();
-        String purchaseToken = sn.purchaseToken();
-        String productId = sn.subscriptionId();
+        String token = sn.purchaseToken();
+        String maskedToken = token != null && token.length() > 6
+                ? token.substring(0, 4) + "..." + token.substring(token.length() - 3)
+                : token;
+
+        log.info("📬 RTDN event: package={} type={} sku={} tokenMasked={}",
+                n.packageName(), sn.notificationType(), sn.subscriptionId(), maskedToken);
 
         // просто пересинхронизируемся с Google
         try {
-            var snap = gp.verify(n.packageName(), productId, purchaseToken, true);
+            var snap = gp.verify(n.packageName(), sn.subscriptionId(), token, true);
             var ent = gp.toEntitlement(snap, Instant.now());
+            log.debug("✅ Verification result: entitlement={}, expiry={}", ent, snap.getExpiry());
 
-            var sub = repo.findByPurchaseToken(purchaseToken).orElseGet(SubscriptionEntity::new);
-            sub.setProductId(productId);
-            sub.setPurchaseToken(purchaseToken);
+
+            var sub = repo.findByPurchaseToken(token).orElseGet(SubscriptionEntity::new);
+            sub.setProductId(sn.subscriptionId());
+            sub.setPurchaseToken(token);
             sub.setPurchaseDate(snap.getStart() != null
                     ? snap.getStart()
                     : (sub.getPurchaseDate() == null ? Instant.now() : sub.getPurchaseDate()));
@@ -124,8 +134,10 @@ public class SubscriptionService {
             sub.setAutoRenewing(snap.isAutoRenewing());
             sub.setAcknowledgementState(snap.getAcknowledgementState());
             repo.save(sub);
+            log.info("💾 Subscription updated: sku={} active={} expiry={}", sn.subscriptionId(), sub.isActive(), sub.getExpiryDate());
+
         } catch (Exception e) {
-            log.error("RTDN sync error token={} productId={} : {}", purchaseToken, productId, e.getMessage(), e);
+            log.error("❌ RTDN sync error: sku={} tokenMasked={} msg={}", sn.subscriptionId(), maskedToken, e.getMessage(), e);
         }
     }
 

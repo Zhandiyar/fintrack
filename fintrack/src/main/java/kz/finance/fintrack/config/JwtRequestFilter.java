@@ -36,6 +36,13 @@ public class JwtRequestFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain chain) throws ServletException, IOException {
+
+        String uri = request.getRequestURI();
+        if ("/api/subscription/google/rtnd".equals(uri)) {
+            chain.doFilter(request, response);
+            return;
+        }
+
         String authorizationHeader = request.getHeader("Authorization");
         log.info("📥 Запрос: {}, Заголовок Authorization: {}", request.getRequestURI(), request.getHeader("Authorization"));
 

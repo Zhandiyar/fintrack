@@ -5,9 +5,11 @@ import jakarta.validation.Valid;
 import kz.finance.security.config.GoogleClientConfig;
 import kz.finance.security.config.JwtTokenProvider;
 import kz.finance.security.dto.ApiResponse;
+import kz.finance.security.dto.AuthResponseDto;
 import kz.finance.security.dto.ForgotPasswordRequestDto;
 import kz.finance.security.dto.GoogleSignInRequest;
 import kz.finance.security.dto.LoginRequestDto;
+import kz.finance.security.dto.RefreshTokenRequestDto;
 import kz.finance.security.dto.RegisterRequestDto;
 import kz.finance.security.dto.ResetPasswordRequestDto;
 import kz.finance.security.exception.TokenException;
@@ -15,6 +17,7 @@ import kz.finance.security.model.UserEntity;
 import kz.finance.security.service.EmailService;
 import kz.finance.security.service.GoogleTokenVerifierService;
 import kz.finance.security.service.PasswordResetService;
+import kz.finance.security.service.RefreshTokenService;
 import kz.finance.security.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,9 +48,9 @@ public class AuthController {
     private final UserService userService;
     private final PasswordResetService passwordResetService;
     private final EmailService emailService;
-    private final PasswordEncoder passwordEncoder;
     private final GoogleTokenVerifierService googleVerifier;
     private final GoogleClientConfig googleClientConfig;
+    private final RefreshTokenService refreshTokenService;
 
     @PostMapping("/register")
     public ResponseEntity<ApiResponse> register(@Valid @RequestBody RegisterRequestDto request) {
@@ -57,12 +60,12 @@ public class AuthController {
                 request.password(),
                 request.pro()
         );
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.username(), request.password())
-        );
-        String token = jwtTokenProvider.generateToken(authentication);
 
-        return ResponseEntity.ok(ApiResponse.success("User registered successfully", token));
+        UserEntity user = userService.getByUsernameOrThrow(request.username());
+
+        AuthResponseDto tokens = refreshTokenService.generateTokenPairForUser(user);
+
+        return ResponseEntity.ok(ApiResponse.success("User registered successfully", tokens));
     }
 
     @PostMapping("/login")
@@ -70,10 +73,14 @@ public class AuthController {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.username(), request.password())
         );
-        String token = jwtTokenProvider.generateToken(authentication);
-        return ResponseEntity.ok(ApiResponse.success("Login successful", token));
-    }
 
+        // достаём пользователя
+        UserEntity user = userService.getByUsernameOrThrow(request.username());
+
+        AuthResponseDto tokens = refreshTokenService.generateTokenPairForUser(user);
+
+        return ResponseEntity.ok(ApiResponse.success("Login successful", tokens));
+    }
     @PostMapping("/forgot-password")
     public ResponseEntity<ApiResponse> forgotPassword(@Valid @RequestBody ForgotPasswordRequestDto request) {
         UserEntity user = userService.getByEmailOrThrow(request.email());
@@ -138,16 +145,17 @@ public class AuthController {
 
         UserEntity user = userService.getOrCreateGoogleUser(email, name);
 
-        String token = jwtTokenProvider.generateToken(user.getUsername());
+        AuthResponseDto tokens = refreshTokenService.generateTokenPairForUser(user);
 
-        return ResponseEntity.ok(ApiResponse.success("Google login successful", token));
+        return ResponseEntity.ok(ApiResponse.success("Google login successful", tokens));
     }
 
     @PostMapping("/guest")
     public ResponseEntity<ApiResponse> createGuestUser() {
         UserEntity guestUser = userService.createGuestUser();
-        String token = jwtTokenProvider.generateToken(guestUser.getUsername());
-        return ResponseEntity.ok(ApiResponse.success("Guest user created successfully", token));
+        refreshTokenService.revokeAllUserTokens(guestUser);
+        AuthResponseDto tokens = refreshTokenService.generateTokenPairForUser(guestUser);
+        return ResponseEntity.ok(ApiResponse.success("Guest user created successfully", tokens));
     }
 
     @PreAuthorize("hasRole('GUEST')")
@@ -172,7 +180,32 @@ public class AuthController {
                 request.email(),
                 request.password()
         );
-        String token = jwtTokenProvider.generateToken(newUser.getUsername());
-        return ResponseEntity.ok(ApiResponse.success("User registered successfully", token));
+        refreshTokenService.revokeAllUserTokens(newUser);
+        AuthResponseDto tokens = refreshTokenService.generateTokenPairForUser(newUser);
+        return ResponseEntity.ok(ApiResponse.success("User registered successfully", tokens));
+    }
+
+    @PostMapping("/refresh")
+    public ResponseEntity<ApiResponse> refreshToken(
+            @Valid @RequestBody RefreshTokenRequestDto request
+    ) {
+        AuthResponseDto tokens = refreshTokenService.refresh(request.refreshToken());
+        return ResponseEntity.ok(ApiResponse.success("Token refreshed successfully", tokens));
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<ApiResponse> logout() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+
+        if (auth == null || !auth.isAuthenticated()
+            || "anonymousUser".equals(auth.getPrincipal())) {
+            return ResponseEntity.ok(ApiResponse.success("Already logged out"));
+        }
+
+        String username = auth.getName();
+        UserEntity user = userService.getByUsernameOrThrow(username);
+        refreshTokenService.revokeAllUserTokens(user);
+
+        return ResponseEntity.ok(ApiResponse.success("Logged out successfully"));
     }
 }

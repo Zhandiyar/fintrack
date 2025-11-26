@@ -43,23 +43,22 @@ public class JwtRequestFilter extends OncePerRequestFilter {
                 String username = tokenProvider.getUsernameFromJWT(jwt);
                 List<String> roles = tokenProvider.getRolesFromJWT(jwt);
 
-                if (!roles.isEmpty()) {
-                    UserDetails userDetails;
-                    if (username.startsWith("guest_") && roles.contains("ROLE_GUEST")) {
-                        userDetails = new User(
-                                username,
-                                "",
-                                List.of(new SimpleGrantedAuthority("ROLE_GUEST"))
-                        );
-                    } else {
-                        userDetails = customUserDetailsService.loadUserByUsername(username);
-                    }
-
-                    UsernamePasswordAuthenticationToken authentication =
-                            new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                UserDetails userDetails;
+                if (username.startsWith("guest_")) {
+                    userDetails = new User(
+                            username,
+                            "",
+                            List.of(new SimpleGrantedAuthority("ROLE_GUEST"))
+                    );
+                } else {
+                    userDetails = customUserDetailsService.loadUserByUsername(username);
                 }
+
+                UsernamePasswordAuthenticationToken authentication =
+                        new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+
             }
         } catch (Exception e) {
             log.error("Failed to authenticate user", e);
@@ -92,6 +91,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             "/api/auth/forgot-password",
             "/api/auth/reset-password",
             "/api/auth/google-signin",
+            "/api/auth/refresh",
             "/actuator/health",
             "/actuator/info"
     );

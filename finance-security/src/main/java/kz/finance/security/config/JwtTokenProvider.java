@@ -28,7 +28,7 @@ public class JwtTokenProvider {
     @Value("${jwt.secret}")
     private String jwtSecret;
 
-    @Value("${jwt.expiration.ms}")
+    @Value("${jwt.access.expiration.ms}")
     private long jwtExpirationInMs;
 
     private final UserRepository userRepository;

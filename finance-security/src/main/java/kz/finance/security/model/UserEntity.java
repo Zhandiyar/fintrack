@@ -63,7 +63,7 @@ public class UserEntity {
     private Set<String> roles = new HashSet<>();
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<ExpenseEntity> expenses;
+    private List<TransactionEntity> expenses;
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)

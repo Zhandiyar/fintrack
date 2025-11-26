@@ -4,7 +4,6 @@ import kz.finance.security.exception.UserAlreadyExistsException;
 import kz.finance.security.exception.UserNotFoundException;
 import kz.finance.security.model.UserEntity;
 import kz.finance.security.model.UserRole;
-import kz.finance.security.repository.ExpenseRepository;
 import kz.finance.security.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,7 +22,6 @@ public class UserService {
     private final UserRepository userRepository;
 
     private final PasswordEncoder passwordEncoder;
-    private final ExpenseRepository expenseRepository;
 
     public void registerUser(String username, String email, String rawPassword, boolean isPro) {
         if (userRepository.existsByUsername(username)) {
@@ -102,7 +100,7 @@ public class UserService {
         guestUser.setEmail(email);
         guestUser.setPassword(passwordEncoder.encode(password));
         guestUser.setGuest(false);
-        guestUser.setRoles(new HashSet<>(Set.of(UserRole.USER.getRole()))); // <-- ИСПРАВИЛ
+        guestUser.setRoles(new HashSet<>(Set.of(UserRole.USER.getRole())));
 
         return userRepository.save(guestUser);
     }

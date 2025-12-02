@@ -9,6 +9,7 @@ import kz.finance.security.dto.AuthResponseDto;
 import kz.finance.security.dto.ForgotPasswordRequestDto;
 import kz.finance.security.dto.GoogleSignInRequest;
 import kz.finance.security.dto.LoginRequestDto;
+import kz.finance.security.dto.LogoutRequest;
 import kz.finance.security.dto.RefreshTokenRequestDto;
 import kz.finance.security.dto.RegisterRequestDto;
 import kz.finance.security.dto.ResetPasswordRequestDto;
@@ -194,18 +195,38 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<ApiResponse> logout() {
+    public ResponseEntity<ApiResponse> logout(@RequestBody LogoutRequest request) {
+
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
-        if (auth == null || !auth.isAuthenticated()
-            || "anonymousUser".equals(auth.getPrincipal())) {
+        // Пользователь не авторизован в принципе
+        if (auth == null || !auth.isAuthenticated() ||
+            "anonymousUser".equals(auth.getPrincipal())) {
             return ResponseEntity.ok(ApiResponse.success("Already logged out"));
         }
 
         String username = auth.getName();
         UserEntity user = userService.getByUsernameOrThrow(username);
-        refreshTokenService.revokeAllUserTokens(user);
+
+        refreshTokenService.revokeToken(request.refreshToken(), user);
 
         return ResponseEntity.ok(ApiResponse.success("Logged out successfully"));
+    }
+
+    @PostMapping("/logout/all")
+    public ResponseEntity<ApiResponse> logoutAllDevices() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+
+        if (auth == null || !auth.isAuthenticated() ||
+            "anonymousUser".equals(auth.getPrincipal())) {
+            return ResponseEntity.ok(ApiResponse.success("Already logged out"));
+        }
+
+        String username = auth.getName();
+        UserEntity user = userService.getByUsernameOrThrow(username);
+
+        refreshTokenService.revokeAllUserTokens(user);
+
+        return ResponseEntity.ok(ApiResponse.success("Logged out from all devices"));
     }
 }

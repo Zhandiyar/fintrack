@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -79,11 +80,25 @@ public class RefreshTokenService {
         return generateTokenPairForUser(user);
     }
 
-    /**
-     * Логаут: ревокация всех refresh токенов пользователя.
-     */
+    public void revokeToken(String token, UserEntity user) {
+        RefreshTokenEntity entity = refreshTokenRepository
+                .findByTokenAndUser(token, user)
+                .orElseThrow(() -> new IllegalArgumentException("Invalid refresh token"));
+
+        entity.setRevoked(true);
+        entity.setRevokedAt(Instant.now());
+
+        refreshTokenRepository.save(entity);
+    }
+
     public void revokeAllUserTokens(UserEntity user) {
-        long deleted = refreshTokenRepository.deleteByUser(user);
-        log.info("Revoked {} refresh tokens for user {}", deleted, user.getUsername());
+        List<RefreshTokenEntity> tokens = refreshTokenRepository.findAllValidTokensByUser(user);
+
+        for (RefreshTokenEntity t : tokens) {
+            t.setRevoked(true);
+            t.setRevokedAt(Instant.now());
+        }
+
+        refreshTokenRepository.saveAll(tokens);
     }
 }

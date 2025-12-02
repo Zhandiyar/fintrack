@@ -1,10 +1,9 @@
-package kz.finance.fintrack.client;
+package kz.finance.fintrack.client.deepseek;
 
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
-
 
 @FeignClient(
         name = "deepSeekClient",

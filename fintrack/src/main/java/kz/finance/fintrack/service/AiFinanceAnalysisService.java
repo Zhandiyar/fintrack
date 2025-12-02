@@ -1,10 +1,10 @@
 package kz.finance.fintrack.service;
 
 import feign.FeignException;
-import kz.finance.fintrack.client.DeepSeekFeignClient;
-import kz.finance.fintrack.client.DeepSeekMessage;
-import kz.finance.fintrack.client.DeepSeekRequest;
-import kz.finance.fintrack.client.DeepSeekResponse;
+import kz.finance.fintrack.client.deepseek.DeepSeekFeignClient;
+import kz.finance.fintrack.client.deepseek.DeepSeekMessage;
+import kz.finance.fintrack.client.deepseek.DeepSeekRequest;
+import kz.finance.fintrack.client.deepseek.DeepSeekResponse;
 import kz.finance.fintrack.dto.ai.FinanceAnalyzeResponse;
 import kz.finance.fintrack.model.TransactionEntity;
 import kz.finance.fintrack.model.TransactionType;
@@ -23,6 +23,7 @@ import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -33,13 +34,16 @@ public class AiFinanceAnalysisService {
     private final TransactionRepository transactionRepository;
     private final DeepSeekFeignClient deepSeekFeignClient;
     private final UserService userService;
+    private static final String DEFAULT_CURRENCY = "KZT";
 
     @Value("${deepseek.api-key}")
     private String deepSeekApiKey;
 
     @Transactional(readOnly = true)
     public FinanceAnalyzeResponse analyzeMonth(int year, int month, String currency) {
-        if (currency == null || currency.isBlank()) currency = "KZT";
+        if (currency == null || currency.isBlank()) {
+            currency = DEFAULT_CURRENCY;
+        }
 
         UserEntity user = userService.getCurrentUser();
 
@@ -53,15 +57,18 @@ public class AiFinanceAnalysisService {
             return new FinanceAnalyzeResponse("Нет данных за выбранный месяц.");
         }
 
-        String summary = buildSummary(txs, currency);
-        String prompt = buildPrompt(summary, ym, txs.size(), currency);
+        String summary = buildPremiumSummary(txs, currency);
+        String prompt = buildPremiumPrompt(summary, ym);
 
         log.info("AI PROMPT:\n{}", prompt);
 
         try {
             DeepSeekRequest request = new DeepSeekRequest(
                     "deepseek-chat",
-                    List.of(new DeepSeekMessage("user", prompt))
+                    List.of(new DeepSeekMessage("user", prompt)),
+                    300,       // ограничиваем размер ответа (ускоряет)
+                    0.7,       // креативность
+                    1.0        // логичность
             );
 
             DeepSeekResponse response = deepSeekFeignClient.chatCompletion("Bearer " + deepSeekApiKey, request);
@@ -71,120 +78,104 @@ public class AiFinanceAnalysisService {
                     : response.choices().get(0).message().content());
         } catch (FeignException e) {
             if (e.status() == 402) {
-                return new FinanceAnalyzeResponse( "Технические работы на сервере AI. Попробуйте позже — мы уже всё чиним!");
+                return new FinanceAnalyzeResponse(
+                        "AI временно недоступен — мы уже всё чиним. Попробуйте позже!"
+                );
             }
             log.error("Ошибка обращения к DeepSeek: {}", e.getMessage(), e);
             throw e;
         }
     }
 
-    /** Генерация адаптивного prompt в зависимости от числа транзакций */
-    private String buildPrompt(String summary, YearMonth ym, int txCount, String currency) {
+    /**
+     * Premium Luxury Deep Review — оптимизированный короткий prompt
+     */
+    private String buildPremiumPrompt(String summary, YearMonth ym) {
+
         String period = "%s %d".formatted(
-                ym.getMonth().getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.forLanguageTag("ru")),
+                ym.getMonth().getDisplayName(java.time.format.TextStyle.FULL,
+                        java.util.Locale.forLanguageTag("ru")),
                 ym.getYear()
         );
-        String symbol = CurrencyUtil.getSymbol(currency);
 
-        if (txCount < 4) {
-            // Мало транзакций — быстрый лайфхак + мотивация
-            return """
-                Ты — персональный AI-помощник в приложении Fintrack.
+        return """
+            Ты — персональный Premium AI-консультант по финансам в приложении FinTrack.  
+            Пользователь заплатил за подписку, ожидая экспертность, стиль и сильные инсайты.
 
-                Вот короткая история пользователя за %s (%s):
+            Данные за месяц (%s):
+            %s
 
-                %s
+            Создай Premium Luxury Deep-Review:
 
-                Все суммы указаны в %s.
-                1. Проанализируй траты и доходы, дай 1 яркий лайфхак для экономии — очень кратко!
-                2. Ответь дружелюбно, добавь эмодзи и короткую позитивную мотивацию (1-2 предложения).
-                3. Всегда делай ответ разным и интересным!
-            """.formatted(period, symbol, summary, symbol);
-        } else {
-            // Стандартный wow-анализ с челленджами
-            return """
-                Ты — персональный AI-помощник по финансам в приложении Fintrack.
+            1) Атмосфера месяца  
+            Опиши настроение месяца: уверенный, нестабильный, импульсивный, спокойный, собранный.  
+            Лёгкие эмоции + умный тон.
 
-                Данные пользователя за %s (%s):
+            2) 3 самых глубоких наблюдения  
+            То, что реально важно: повторяющиеся траты, перекосы, скрытые мелкие расходы, “вампиры бюджета”.
 
-                %s
+            3) Финансовый портрет  
+            Стиль поведения: аккуратный, спонтанный, рациональный, гибкий, расходный или накопительный.
 
-                Все суммы указаны в %s.
-                1. Проанализируй баланс, выдели необычные/крупные траты, дай краткий вывод.
-                2. Напиши на русском — коротко, дружелюбно, с эмодзи.
-                3. Придумай 2 новых лайфхака, челлендж или мини-игру (например, “угадай лишнюю трату”, “выбери трату месяца”).
-                4. Иногда добавляй неожиданный совет или интересный факт о финансах!
-                5. В конце — мотивация (“каждый месяц мы придумаем что-то новенькое!”, “попробуй анализ еще раз — результат может удивить!”).
-                6. Ответ всегда делай разным!
-            """.formatted(period, symbol, summary, symbol);
-        }
+            4) Premium рекомендация  
+            1 точный совет, основанный только на цифрах.
+
+            5) Прогноз + краткий план  
+            Мягкий прогноз следующего месяца + 2 шага для улучшения результата.
+
+            6) Финальный Premium-аккорд  
+            Элитный тон, уверенность, лёгкий оптимизм, 1–2 эмодзи.  
+            Ответ делай уникальным, эстетичным, сильным.
+            """.formatted(period, summary);
     }
 
-    /** Формирование summary: топ-доходы, топ-расходы, категории, итоговые суммы */
-    private String buildSummary(List<TransactionEntity> txs, String currency) {
+    /**
+     * Очень лёгкий summary → модель работает быстро.
+     * ТОЛЬКО ключевые цифры — без списков транзакций.
+     */
+    private String buildPremiumSummary(List<TransactionEntity> txs, String currency) {
         String symbol = CurrencyUtil.getSymbol(currency);
 
-        var topIncome = txs.stream()
-                .filter(tx -> tx.getType() == TransactionType.INCOME)
-                .sorted(Comparator.comparing(TransactionEntity::getAmount).reversed())
-                .limit(3)
-                .collect(Collectors.toList());
+        BigDecimal income = txs.stream()
+                .filter(t -> t.getType() == TransactionType.INCOME)
+                .map(TransactionEntity::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        var topExpense = txs.stream()
-                .filter(tx -> tx.getType() == TransactionType.EXPENSE)
-                .sorted(Comparator.comparing(TransactionEntity::getAmount).reversed())
-                .limit(3)
-                .collect(Collectors.toList());
+        BigDecimal expense = txs.stream()
+                .filter(t -> t.getType() == TransactionType.EXPENSE)
+                .map(TransactionEntity::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        var byCategory = txs.stream()
+        BigDecimal balance = income.subtract(expense);
+
+        Map<String, BigDecimal> topCategories = txs.stream()
+                .filter(t -> t.getType() == TransactionType.EXPENSE)
                 .collect(Collectors.groupingBy(
-                        tx -> tx.getCategory().getNameRu(),
-                        Collectors.mapping(TransactionEntity::getAmount, Collectors.toList())
+                        t -> t.getCategory().getNameRu(),
+                        Collectors.reducing(BigDecimal.ZERO,
+                                TransactionEntity::getAmount, BigDecimal::add)
                 ));
 
-        var categorySummary = byCategory.entrySet().stream()
-                .map(e -> String.format("- %s: %s %s",
+        String categories = topCategories.entrySet().stream()
+                .sorted(Map.Entry.<String, BigDecimal>comparingByValue().reversed())
+                .limit(5)
+                .map(e -> "%s: %s %s".formatted(
                         e.getKey(),
-                        e.getValue().stream().map(amount -> amount.toPlainString() + " " + symbol).collect(Collectors.joining(", ")),
-                        ""))
-                .collect(Collectors.joining("\n"));
+                        e.getValue().setScale(0, RoundingMode.DOWN),
+                        symbol
+                ))
+                .collect(Collectors.joining("; "));
 
-        var topIncomeSummary = topIncome.isEmpty() ? "—" : topIncome.stream()
-                .map(tx -> String.format("- %s %s (%s, %s)",
-                        tx.getAmount().setScale(0, RoundingMode.DOWN),
-                        symbol,
-                        tx.getCategory().getNameRu(),
-                        tx.getComment() == null ? "" : tx.getComment()))
-                .collect(Collectors.joining("\n"));
-
-        var topExpenseSummary = topExpense.isEmpty() ? "—" : topExpense.stream()
-                .map(tx -> String.format("- %s %s (%s, %s)",
-                        tx.getAmount().setScale(0, RoundingMode.DOWN),
-                        symbol,
-                        tx.getCategory().getNameRu(),
-                        tx.getComment() == null ? "" : tx.getComment()))
-                .collect(Collectors.joining("\n"));
-
-        var totalIncome = txs.stream()
-                .filter(tx -> tx.getType() == TransactionType.INCOME)
-                .map(TransactionEntity::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        var totalExpense = txs.stream()
-                .filter(tx -> tx.getType() == TransactionType.EXPENSE)
-                .map(TransactionEntity::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        var balance = totalIncome.subtract(totalExpense);
-
-        return String.format(
-                "Категории расходов:\n%s\n\nТоп-3 дохода:\n%s\n\nТоп-3 расхода:\n%s\n\nВсего доходов: %s %s\nВсего расходов: %s %s\nБаланс: %s %s",
-                categorySummary,
-                topIncomeSummary,
-                topExpenseSummary,
-                totalIncome.toPlainString(), symbol,
-                totalExpense.toPlainString(), symbol,
-                balance.toPlainString(), symbol
+        return """
+            Топ категорий расходов: %s
+            Доходы: %s %s
+            Расходы: %s %s
+            Баланс: %s %s
+            """.formatted(
+                categories,
+                income.setScale(0, RoundingMode.DOWN), symbol,
+                expense.setScale(0, RoundingMode.DOWN), symbol,
+                balance.setScale(0, RoundingMode.DOWN), symbol
         );
     }
 }

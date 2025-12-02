@@ -21,7 +21,6 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -62,29 +61,47 @@ public class AiFinanceAnalysisService {
 
         log.info("AI PROMPT:\n{}", prompt);
 
+        // 1) попробуем chat
         try {
-            DeepSeekRequest request = new DeepSeekRequest(
-                    "deepseek-chat",
-                    List.of(new DeepSeekMessage("user", prompt)),
-                    300,       // ограничиваем размер ответа (ускоряет)
-                    0.7,       // креативность
-                    1.0        // логичность
-            );
-
-            DeepSeekResponse response = deepSeekFeignClient.chatCompletion("Bearer " + deepSeekApiKey, request);
-
-            return new FinanceAnalyzeResponse(response.choices().isEmpty()
-                    ? "AI не вернул ответ, попробуйте позже."
-                    : response.choices().get(0).message().content());
+            return callDeepSeek("deepseek-chat", prompt);
         } catch (FeignException e) {
-            if (e.status() == 402) {
-                return new FinanceAnalyzeResponse(
-                        "AI временно недоступен — мы уже всё чиним. Попробуйте позже!"
-                );
-            }
-            log.error("Ошибка обращения к DeepSeek: {}", e.getMessage(), e);
-            throw e;
+            log.warn("deepseek-chat failed, fallback to reasoner: {}", e.getMessage());
         }
+
+        // 2) fallback → reasoner
+        try {
+            return callDeepSeek("deepseek-reasoner", prompt);
+        } catch (FeignException e) {
+            log.error("deepseek-reasoner also failed: {}", e.getMessage());
+            return new FinanceAnalyzeResponse(
+                    "AI временно недоступен — попробуйте позже!"
+            );
+        }
+    }
+
+    private FinanceAnalyzeResponse callDeepSeek(String model, String prompt) {
+
+        log.info("Using DeepSeek model: {}", model);
+
+        DeepSeekRequest request = DeepSeekRequest.builder()
+                .model(model)
+                .messages(List.of(new DeepSeekMessage("user", prompt)))
+                .maxTokens(model.equals("deepseek-chat") ? 700 : 500)
+                .stream(false)
+                .build();
+
+        DeepSeekResponse response = deepSeekFeignClient.chatCompletion(
+                "Bearer " + deepSeekApiKey,
+                request
+        );
+
+        if (response.choices().isEmpty()) {
+            return new FinanceAnalyzeResponse("AI не вернул ответ.");
+        }
+
+        return new FinanceAnalyzeResponse(
+                response.choices().get(0).message().content()
+        );
     }
 
     /**
@@ -99,34 +116,34 @@ public class AiFinanceAnalysisService {
         );
 
         return """
-            Ты — персональный Premium AI-консультант по финансам в приложении FinTrack.  
-            Пользователь заплатил за подписку, ожидая экспертность, стиль и сильные инсайты.
+                Ты — персональный Premium AI-консультант по финансам в приложении FinTrack.  
+                Пользователь заплатил за подписку, ожидая экспертность, стиль и сильные инсайты.
 
-            Данные за месяц (%s):
-            %s
+                Данные за месяц (%s):
+                %s
 
-            Создай Premium Luxury Deep-Review:
+                Создай Premium Luxury Deep-Review:
 
-            1) Атмосфера месяца  
-            Опиши настроение месяца: уверенный, нестабильный, импульсивный, спокойный, собранный.  
-            Лёгкие эмоции + умный тон.
+                1) Атмосфера месяца  
+                Опиши настроение месяца: уверенный, нестабильный, импульсивный, спокойный, собранный.  
+                Лёгкие эмоции + умный тон.
 
-            2) 3 самых глубоких наблюдения  
-            То, что реально важно: повторяющиеся траты, перекосы, скрытые мелкие расходы, “вампиры бюджета”.
+                2) 3 самых глубоких наблюдения  
+                То, что реально важно: повторяющиеся траты, перекосы, скрытые мелкие расходы, “вампиры бюджета”.
 
-            3) Финансовый портрет  
-            Стиль поведения: аккуратный, спонтанный, рациональный, гибкий, расходный или накопительный.
+                3) Финансовый портрет  
+                Стиль поведения: аккуратный, спонтанный, рациональный, гибкий, расходный или накопительный.
 
-            4) Premium рекомендация  
-            1 точный совет, основанный только на цифрах.
+                4) Premium рекомендация  
+                1 точный совет, основанный только на цифрах.
 
-            5) Прогноз + краткий план  
-            Мягкий прогноз следующего месяца + 2 шага для улучшения результата.
+                5) Прогноз + краткий план  
+                Мягкий прогноз следующего месяца + 2 шага для улучшения результата.
 
-            6) Финальный Premium-аккорд  
-            Элитный тон, уверенность, лёгкий оптимизм, 1–2 эмодзи.  
-            Ответ делай уникальным, эстетичным, сильным.
-            """.formatted(period, summary);
+                6) Финальный Premium-аккорд  
+                Элитный тон, уверенность, лёгкий оптимизм, 1–2 эмодзи.  
+                Ответ делай уникальным, эстетичным, сильным.
+                """.formatted(period, summary);
     }
 
     /**
@@ -167,11 +184,11 @@ public class AiFinanceAnalysisService {
                 .collect(Collectors.joining("; "));
 
         return """
-            Топ категорий расходов: %s
-            Доходы: %s %s
-            Расходы: %s %s
-            Баланс: %s %s
-            """.formatted(
+                Топ категорий расходов: %s
+                Доходы: %s %s
+                Расходы: %s %s
+                Баланс: %s %s
+                """.formatted(
                 categories,
                 income.setScale(0, RoundingMode.DOWN), symbol,
                 expense.setScale(0, RoundingMode.DOWN), symbol,

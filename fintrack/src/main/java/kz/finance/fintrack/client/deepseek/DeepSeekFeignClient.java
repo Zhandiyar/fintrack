@@ -7,7 +7,8 @@ import org.springframework.web.bind.annotation.RequestHeader;
 
 @FeignClient(
         name = "deepSeekClient",
-        url = "https://api.deepseek.com/v1"
+        url = "https://api.deepseek.com/v1",
+        configuration = DeepSeekFeignConfig.class
 )
 public interface DeepSeekFeignClient {
     @PostMapping("/chat/completions")

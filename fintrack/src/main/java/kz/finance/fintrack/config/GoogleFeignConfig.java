@@ -8,14 +8,14 @@ import feign.RetryableException;
 import feign.Retryer;
 import feign.codec.ErrorDecoder;
 import kz.finance.fintrack.service.subscription.GoogleAccessTokenService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 
-@Configuration
-@RequiredArgsConstructor
 public class GoogleFeignConfig {
     private final GoogleAccessTokenService tokenService;
+
+    public GoogleFeignConfig(GoogleAccessTokenService tokenService) {
+        this.tokenService = tokenService;
+    }
 
     @Bean
     public RequestInterceptor googleTokenInterceptor() {

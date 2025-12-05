@@ -22,6 +22,7 @@ public class PasswordResetService {
     private final PasswordResetTokenRepository tokenRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserService userService;
+    private final RefreshTokenService refreshTokenService;
 
     @Transactional
     public PasswordResetTokenEntity createOrUpdatePasswordResetTokenForUser(UserEntity user) {
@@ -56,6 +57,7 @@ public class PasswordResetService {
         user.setPassword(passwordEncoder.encode(newPassword));
         userService.save(user);
         tokenRepository.delete(tokenEntity);
+        refreshTokenService.revokeAllUserTokens(user);
         log.info("Password successfully reset for user: {}", user.getUsername());
     }
 

@@ -3,8 +3,8 @@ package kz.finance.security.controller;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import jakarta.validation.Valid;
 import kz.finance.security.config.GoogleClientConfig;
-import kz.finance.security.config.JwtTokenProvider;
 import kz.finance.security.dto.ApiResponse;
+import kz.finance.security.dto.AuthPlatform;
 import kz.finance.security.dto.AuthResponseDto;
 import kz.finance.security.dto.ForgotPasswordRequestDto;
 import kz.finance.security.dto.GoogleSignInRequest;
@@ -13,7 +13,6 @@ import kz.finance.security.dto.LogoutRequest;
 import kz.finance.security.dto.RefreshTokenRequestDto;
 import kz.finance.security.dto.RegisterRequestDto;
 import kz.finance.security.dto.ResetPasswordRequestDto;
-import kz.finance.security.exception.TokenException;
 import kz.finance.security.model.UserEntity;
 import kz.finance.security.service.EmailService;
 import kz.finance.security.service.GoogleTokenVerifierService;
@@ -28,7 +27,6 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -36,7 +34,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -45,7 +42,6 @@ import java.util.Optional;
 public class AuthController {
 
     private final AuthenticationManager authenticationManager;
-    private final JwtTokenProvider jwtTokenProvider;
     private final UserService userService;
     private final PasswordResetService passwordResetService;
     private final EmailService emailService;
@@ -108,22 +104,14 @@ public class AuthController {
 
     @GetMapping("/reset-password")
     public ResponseEntity<ApiResponse> validateResetToken(@RequestParam String token) {
-        try {
             passwordResetService.validatePasswordResetToken(token);
             return ResponseEntity.ok(ApiResponse.success("Token is valid"));
-        } catch (TokenException ex) {
-            return ResponseEntity.badRequest().body(ApiResponse.error("Invalid or expired token"));
-        }
     }
 
     @PostMapping("/reset-password")
     public ResponseEntity<ApiResponse> resetPassword(@Valid @RequestBody ResetPasswordRequestDto request) {
-        try {
             passwordResetService.resetPassword(request.token(), request.newPassword());
             return ResponseEntity.ok(ApiResponse.success("Password reset successful"));
-        } catch (TokenException ex) {
-            return ResponseEntity.badRequest().body(ApiResponse.error(ex.getMessage()));
-        }
     }
 
     @PostMapping("/google-signin")

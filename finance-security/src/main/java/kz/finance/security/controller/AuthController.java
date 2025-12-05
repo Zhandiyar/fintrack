@@ -117,13 +117,13 @@ public class AuthController {
     @PostMapping("/google-signin")
     public ResponseEntity<ApiResponse> googleSignIn(@RequestBody GoogleSignInRequest request) {
         String idToken = request.idToken();
-        String platform = Optional.ofNullable(request.platform()).orElse("web").toLowerCase();
+        AuthPlatform platform = AuthPlatform.from(request.platform());
 
         // Выбор clientId по платформе
         String clientId = switch (platform) {
-            case "android" -> googleClientConfig.getAndroidClientId();
-            case "ios" -> googleClientConfig.getIosClientId();
-            default -> googleClientConfig.getWebClientId();
+            case ANDROID -> googleClientConfig.getAndroidClientId();
+            case IOS -> googleClientConfig.getIosClientId();
+            case WEB -> googleClientConfig.getWebClientId();
         };
 
         // Верификация токена

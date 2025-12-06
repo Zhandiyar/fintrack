@@ -12,6 +12,7 @@ services:
       - ./ssl:/etc/nginx/ssl:ro
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
       - ./nginx/conf.d/app-links:/etc/nginx/conf.d/app-links:ro
+      - ./nginx/conf.d/app-links.conf:/etc/nginx/conf.d/app-links.conf:ro
       - nginx_logs:/var/log/nginx
     depends_on:
       - fintrack

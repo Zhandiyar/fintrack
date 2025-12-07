@@ -4,7 +4,6 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import jakarta.validation.Valid;
 import kz.finance.security.config.GoogleClientConfig;
 import kz.finance.security.dto.ApiResponse;
-import kz.finance.security.dto.AuthPlatform;
 import kz.finance.security.dto.AuthResponseDto;
 import kz.finance.security.dto.ForgotPasswordRequestDto;
 import kz.finance.security.dto.GoogleSignInRequest;
@@ -117,17 +116,9 @@ public class AuthController {
     @PostMapping("/google-signin")
     public ResponseEntity<ApiResponse> googleSignIn(@RequestBody GoogleSignInRequest request) {
         String idToken = request.idToken();
-        AuthPlatform platform = AuthPlatform.from(request.platform());
-
-        // Выбор clientId по платформе
-        String clientId = switch (platform) {
-            case ANDROID -> googleClientConfig.getAndroidClientId();
-            case IOS -> googleClientConfig.getIosClientId();
-            case WEB -> googleClientConfig.getWebClientId();
-        };
 
         // Верификация токена
-        GoogleIdToken.Payload payload = googleVerifier.verify(idToken, clientId);
+        GoogleIdToken.Payload payload = googleVerifier.verify(idToken);
 
         String email = payload.getEmail();
         String name = (String) payload.get("name");

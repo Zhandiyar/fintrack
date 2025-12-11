@@ -1,0 +1,10 @@
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS apple_id VARCHAR(255);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_apple_id_unique ON users(apple_id);
+
+ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS provider VARCHAR(20) NOT NULL DEFAULT 'LOCAL';
+
+ALTER TABLE users
+    ALTER COLUMN email DROP NOT NULL;

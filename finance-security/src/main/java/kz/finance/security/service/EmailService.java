@@ -21,7 +21,7 @@ public class EmailService {
     @Value("${resend.api.key}")
     private String resendApiKey;
     private static final String API_URL = "https://api.resend.com/emails";
-    private final OkHttpClient client = new OkHttpClient();
+    private final OkHttpClient httpClient;
     private final ObjectMapper mapper = new ObjectMapper();
 
     public void sendSimpleMessage(String to, String subject, String text) {
@@ -45,7 +45,7 @@ public class EmailService {
                     .post(requestBody)
                     .build();
 
-            try (Response response = client.newCall(request).execute()) {
+            try (Response response = httpClient.newCall(request).execute()) {
                 if (!response.isSuccessful()) {
                     String responseBody = response.body() != null ? response.body().string() : "empty";
                     log.error("Resend failed with status {}: {}", response.code(), responseBody);

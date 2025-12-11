@@ -10,6 +10,8 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.EnumType;
 import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToMany;
@@ -31,7 +33,8 @@ import java.util.Set;
 @Entity
 @Table(name = "users", indexes = {
     @Index(name = "idx_users_username", columnList = "username"),
-    @Index(name = "idx_users_email", columnList = "email")
+    @Index(name = "idx_users_email", columnList = "email"),
+    @Index(name = "idx_users_apple_id", columnList = "apple_id")
 })
 @NoArgsConstructor
 @AllArgsConstructor
@@ -48,13 +51,21 @@ public class UserEntity {
     @Column(nullable = false, unique = true, length = 50)
     private String username;
 
-    @Column(nullable = false, unique = true, length = 100)
+    @Column(nullable = true, unique = true, length = 100)
     private String email;
 
     @Column(nullable = false)
     private String password;
 
     private boolean guest;
+
+    @Column(name = "apple_id", unique = true, nullable = true, length = 255)
+    private String appleId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "provider", nullable = false, length = 20)
+    @Builder.Default
+    private AuthProvider provider = AuthProvider.LOCAL;
 
     @Builder.Default
     @ElementCollection(fetch = FetchType.EAGER)
@@ -63,7 +74,7 @@ public class UserEntity {
     private Set<String> roles = new HashSet<>();
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private List<TransactionEntity> expenses;
+    private List<TransactionEntity> transactions;
 
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)

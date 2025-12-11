@@ -29,3 +29,8 @@ google:
     web-client-id: ${GOOGLE_WEB_CLIENT_ID}
     android-client-id: ${GOOGLE_ANDROID_CLIENT_ID}
     ios-client-id: ${GOOGLE_IOS_CLIENT_ID}
+
+apple:
+  issuer: ${APPLE_ISSUER}
+  jwks-url: ${APPLE_JWKS_URL}
+  audience: ${APPLE_AUDIENCE:pro.fintrack.app}

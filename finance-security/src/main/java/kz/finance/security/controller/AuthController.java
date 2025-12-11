@@ -2,9 +2,10 @@ package kz.finance.security.controller;
 
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import jakarta.validation.Valid;
-import kz.finance.security.config.GoogleClientConfig;
 import kz.finance.security.dto.ApiResponse;
 import kz.finance.security.dto.AuthResponseDto;
+import kz.finance.security.dto.AppleSignInRequest;
+import kz.finance.security.dto.AppleSignInResponse;
 import kz.finance.security.dto.ForgotPasswordRequestDto;
 import kz.finance.security.dto.GoogleSignInRequest;
 import kz.finance.security.dto.LoginRequestDto;
@@ -13,6 +14,7 @@ import kz.finance.security.dto.RefreshTokenRequestDto;
 import kz.finance.security.dto.RegisterRequestDto;
 import kz.finance.security.dto.ResetPasswordRequestDto;
 import kz.finance.security.model.UserEntity;
+import kz.finance.security.service.AppleAuthService;
 import kz.finance.security.service.EmailService;
 import kz.finance.security.service.GoogleTokenVerifierService;
 import kz.finance.security.service.PasswordResetService;
@@ -21,6 +23,7 @@ import kz.finance.security.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -45,8 +48,8 @@ public class AuthController {
     private final PasswordResetService passwordResetService;
     private final EmailService emailService;
     private final GoogleTokenVerifierService googleVerifier;
-    private final GoogleClientConfig googleClientConfig;
     private final RefreshTokenService refreshTokenService;
+    private final AppleAuthService appleAuthService;
 
     @PostMapping("/register")
     public ResponseEntity<ApiResponse> register(@Valid @RequestBody RegisterRequestDto request) {
@@ -130,6 +133,31 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success("Google login successful", tokens));
     }
 
+    @PostMapping("/apple")
+    public ResponseEntity<ApiResponse> appleSignIn(@Valid @RequestBody AppleSignInRequest request) {
+        // Validate and extract user info from Apple token
+        var userInfo = appleAuthService.validateAndExtractUserInfo(
+                request.token(),
+                request.fullName(),
+                request.email()
+        );
+        log.info("Apple Sign-in request for sub={}", userInfo.sub());
+
+        // Check if user already exists by Apple ID before creating/getting
+        boolean isNewUser = userService.findByAppleId(userInfo.sub()).isEmpty();
+
+        // Get or create user
+        UserEntity user = appleAuthService.getOrCreateAppleUser(userInfo);
+
+        // Generate JWT tokens
+        AuthResponseDto tokens = refreshTokenService.generateTokenPairForUser(user);
+
+        // Return response with isNewUser flag
+        AppleSignInResponse response = AppleSignInResponse.of(tokens, isNewUser);
+
+        return ResponseEntity.ok(ApiResponse.success("Apple login successful", response));
+    }
+
     @PostMapping("/guest")
     public ResponseEntity<ApiResponse> createGuestUser() {
         UserEntity guestUser = userService.createGuestUser();
@@ -138,20 +166,20 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success("Guest user created successfully", tokens));
     }
 
-    @PreAuthorize("hasRole('GUEST')")
+    @PreAuthorize("hasAuthority('GUEST')")
     @PostMapping("/register-from-guest")
     public ResponseEntity<ApiResponse> registerFromGuest(@RequestBody RegisterRequestDto request) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
 
         if (auth == null || !auth.isAuthenticated() || "anonymousUser".equals(auth.getPrincipal())) {
-            throw new RuntimeException("Unauthorized access");
+            throw new AccessDeniedException("Unauthorized access");
         }
 
         String guestUsername = auth.getName();
         UserEntity guestUser = userService.getByUsernameOrThrow(guestUsername);
 
         if (!guestUser.isGuest()) {
-            throw new RuntimeException("Only guest users can register here.");
+            throw new AccessDeniedException("Only guest users can register here.");
         }
 
         UserEntity newUser = userService.upgradeGuestToUser(

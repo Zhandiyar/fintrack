@@ -2,6 +2,7 @@ package kz.finance.security.service;
 
 import kz.finance.security.exception.UserAlreadyExistsException;
 import kz.finance.security.exception.UserNotFoundException;
+import kz.finance.security.model.AuthProvider;
 import kz.finance.security.model.UserEntity;
 import kz.finance.security.model.UserRole;
 import kz.finance.security.repository.UserRepository;
@@ -11,6 +12,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -59,8 +61,9 @@ public class UserService {
         return userRepository.findByEmail(email).orElseGet(() -> {
             UserEntity user = UserEntity.builder()
                     .email(email)
+                    .provider(AuthProvider.GOOGLE)
                     .username(generateUsername(email))
-                    .password(java.util.UUID.randomUUID().toString()) // фиктивный пароль
+                    .password(passwordEncoder.encode(UUID.randomUUID().toString()))
                     .build();
             user.addRole(UserRole.USER);
             return userRepository.save(user);
@@ -103,5 +106,9 @@ public class UserService {
         guestUser.setRoles(new HashSet<>(Set.of(UserRole.USER.getRole())));
 
         return userRepository.save(guestUser);
+    }
+
+    public Optional<UserEntity> findByAppleId(String appleId) {
+        return userRepository.findByAppleId(appleId);
     }
 }

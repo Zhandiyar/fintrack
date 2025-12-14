@@ -19,6 +19,7 @@ import java.security.spec.RSAPublicKeySpec;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Date;
+import java.util.List;
 
 @Component
 @RequiredArgsConstructor
@@ -97,16 +98,19 @@ public class AppleJwtValidator {
             throw new AppleAuthException("Token does not contain 'aud' claim");
         }
 
-        String expectedAudience = props.audience();
+        List<String> allowedAudiences = List.of(
+                "pro.fintrack.app",          // iOS native
+                "pro.fintrack.app.service"   // web
+        );
 
         if (aud instanceof String audStr) {
-            if (!expectedAudience.equals(audStr)) {
+            if (!allowedAudiences.contains(audStr)) {
                 throw new AppleAuthException("Audience mismatch: " + audStr);
             }
         } else if (aud instanceof Collection<?> audCollection) {
             boolean matched = audCollection.stream()
                     .map(Object::toString)
-                    .anyMatch(expectedAudience::equals);
+                    .anyMatch(allowedAudiences::contains);
 
             if (!matched) {
                 throw new AppleAuthException("Audience mismatch (array): " + audCollection);
@@ -115,6 +119,7 @@ public class AppleJwtValidator {
             throw new AppleAuthException("Unsupported 'aud' claim type: " + aud.getClass());
         }
     }
+
 
     private PublicKey findPublicKey(JsonNode keys, String kid) throws Exception {
         for (JsonNode key : keys) {

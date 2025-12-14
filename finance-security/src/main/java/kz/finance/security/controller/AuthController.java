@@ -166,7 +166,7 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.success("Guest user created successfully", tokens));
     }
 
-    @PreAuthorize("hasAuthority('GUEST')")
+    @PreAuthorize("hasRole('GUEST')")
     @PostMapping("/register-from-guest")
     public ResponseEntity<ApiResponse> registerFromGuest(@RequestBody RegisterRequestDto request) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();

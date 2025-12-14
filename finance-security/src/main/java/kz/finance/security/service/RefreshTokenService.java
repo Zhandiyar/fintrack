@@ -49,7 +49,7 @@ public class RefreshTokenService {
      * Генерируем пару access + refresh токенов для пользователя.
      */
     public AuthResponseDto generateTokenPairForUser(UserEntity user) {
-        String accessToken = jwtTokenProvider.generateToken(user.getUsername());
+        String accessToken = jwtTokenProvider.generateToken(user);
         RefreshTokenEntity refreshToken = createRefreshToken(user);
         return AuthResponseDto.of(accessToken, refreshToken.getToken(), accessTokenExpirationMs);
     }

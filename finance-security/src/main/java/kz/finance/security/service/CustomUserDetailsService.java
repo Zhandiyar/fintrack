@@ -2,6 +2,7 @@ package kz.finance.security.service;
 
 import kz.finance.security.model.UserEntity;
 import kz.finance.security.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
@@ -10,29 +11,33 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
-// This service loads user details required by Spring Security
 @Service
+@RequiredArgsConstructor
 public class CustomUserDetailsService implements UserDetailsService {
 
     private final UserRepository userRepository;
 
-    public CustomUserDetailsService(UserRepository userRepository) {
-        this.userRepository = userRepository;
-    }
-
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-
         UserEntity user = userRepository.findByUsername(username)
-            .orElseThrow(() -> new UsernameNotFoundException("User not found with username: " + username));
+                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + username));
 
-        List<GrantedAuthority> authorities = user.getRoles().stream()
-            .map(SimpleGrantedAuthority::new)
-            .collect(Collectors.toList());
+        Set<GrantedAuthority> authorities = user.getRoles().stream()
+                .map(SimpleGrantedAuthority::new)     // роли уже в формате ROLE_*
+                .collect(Collectors.toUnmodifiableSet());
 
-        return new User(user.getUsername(), user.getPassword(), authorities);
+        // Важно: для guest тоже возвращаем реальный пароль из БД (он у тебя рандомный/захэшенный)
+        return new User(
+                user.getUsername(),
+                user.getPassword(),
+                true,   // enabled
+                true,   // accountNonExpired
+                true,   // credentialsNonExpired
+                true,   // accountNonLocked
+                authorities
+        );
     }
 }

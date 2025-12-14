@@ -3,8 +3,8 @@ package kz.finance.security.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.JwtParser;
+import io.jsonwebtoken.Jwts;
 import kz.finance.security.config.AppleProperties;
 import kz.finance.security.exception.AppleAuthException;
 import lombok.RequiredArgsConstructor;
@@ -17,9 +17,6 @@ import java.security.KeyFactory;
 import java.security.PublicKey;
 import java.security.spec.RSAPublicKeySpec;
 import java.util.Base64;
-import java.util.Collection;
-import java.util.Date;
-import java.util.List;
 
 @Component
 @RequiredArgsConstructor
@@ -62,14 +59,15 @@ public class AppleJwtValidator {
             JwtParser parser = Jwts.parserBuilder()
                     .setSigningKey(publicKey)
                     .requireIssuer(props.issuer())
+                    .requireAudience(props.audience())
+                    .setAllowedClockSkewSeconds(60)
                     .build();
+
+
 
             Claims claims = parser
                     .parseClaimsJws(identityToken)
                     .getBody();
-
-            validateExpiration(claims);
-            validateAudience(claims);
 
             return claims;
 
@@ -78,45 +76,6 @@ public class AppleJwtValidator {
         } catch (Exception e) {
             log.error("Failed to validate Apple token", e);
             throw new AppleAuthException("Token validation failed", e);
-        }
-    }
-
-    private void validateExpiration(Claims claims) {
-        Date exp = claims.getExpiration();
-        if (exp == null) {
-            throw new AppleAuthException("Token does not contain 'exp' claim");
-        }
-        if (exp.before(new Date())) {
-            throw new AppleAuthException("Apple identity token is expired");
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private void validateAudience(Claims claims) {
-        Object aud = claims.get("aud");
-        if (aud == null) {
-            throw new AppleAuthException("Token does not contain 'aud' claim");
-        }
-
-        List<String> allowedAudiences = List.of(
-                "pro.fintrack.app",          // iOS native
-                "pro.fintrack.app.service"   // web
-        );
-
-        if (aud instanceof String audStr) {
-            if (!allowedAudiences.contains(audStr)) {
-                throw new AppleAuthException("Audience mismatch: " + audStr);
-            }
-        } else if (aud instanceof Collection<?> audCollection) {
-            boolean matched = audCollection.stream()
-                    .map(Object::toString)
-                    .anyMatch(allowedAudiences::contains);
-
-            if (!matched) {
-                throw new AppleAuthException("Audience mismatch (array): " + audCollection);
-            }
-        } else {
-            throw new AppleAuthException("Unsupported 'aud' claim type: " + aud.getClass());
         }
     }
 

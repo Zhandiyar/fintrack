@@ -15,10 +15,8 @@ import org.springframework.transaction.annotation.Transactional;
 public class UserService {
 
     private final UserRepository repository;
-    private final PasswordEncoder passwordEncoder;
 
     public UserEntity getByLogin(String userName) {
-        log.info("Текущий пользователь: {}", userName);
         return repository.findByUsername(userName)
             .orElseThrow(() -> new IllegalArgumentException("User not found"));
     }
@@ -27,34 +25,19 @@ public class UserService {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
 
         if (authentication != null && authentication.isAuthenticated()) {
-            log.info("Текущий пользователь: {}", authentication.getName());
             return authentication.getName();
         }
        return null;
     }
 
     public UserEntity getCurrentUser() {
-        return getByLogin(getCurrentLogin());
-    }
+        String login = getCurrentLogin();
 
-    @Transactional
-    public void changePassword(String currentPassword, String newPassword) {
-        UserEntity currentUser = getCurrentUser();
-        // Проверяем, совпадает ли текущий пароль
-        if (!passwordEncoder.matches(currentPassword, currentUser.getPassword())) {
-            throw new IllegalArgumentException("Неверный текущий пароль");
+        if (login == null || "anonymousUser".equals(login)) {
+            throw new IllegalStateException("Unauthenticated user");
         }
 
-        // Кодируем и сохраняем новый пароль
-        currentUser.setPassword(passwordEncoder.encode(newPassword));
-        repository.save(currentUser);
+        return getByLogin(login);
     }
 
-    @Transactional
-    public void deleteUserAndAllData() {
-        UserEntity currentUser = getCurrentUser();
-        log.info("Удаление пользователя и всех его данных: {}", currentUser.getUsername());
-        repository.delete(currentUser);
-        log.info("Пользователь и все его данные успешно удалены");
-    }
 }

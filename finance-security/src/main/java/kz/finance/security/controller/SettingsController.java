@@ -1,9 +1,8 @@
-package kz.finance.fintrack.controller;
-
+package kz.finance.security.controller;
 
 import jakarta.validation.Valid;
-import kz.finance.fintrack.dto.ChangePasswordRequest;
-import kz.finance.fintrack.service.UserService;
+import kz.finance.security.dto.ChangePasswordRequest;
+import kz.finance.security.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -30,3 +29,4 @@ public class SettingsController {
         userService.deleteUserAndAllData();
     }
 }
+

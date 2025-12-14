@@ -1,4 +1,4 @@
-package kz.finance.fintrack.dto;
+package kz.finance.security.dto;
 
 import jakarta.validation.constraints.NotBlank;
 

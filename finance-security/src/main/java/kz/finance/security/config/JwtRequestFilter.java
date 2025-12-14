@@ -84,23 +84,10 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         return null;
     }
 
-    private static final List<String> EXCLUDED_PATHS = List.of(
-            "/api/auth/login",
-            "/api/auth/register",
-            "/api/auth/guest",
-            "/api/auth/forgot-password",
-            "/api/auth/reset-password",
-            "/api/auth/google-signin",
-            "/api/auth/apple",
-            "/api/auth/refresh",
-            "/actuator/health",
-            "/actuator/info"
-    );
-
     @Override
-    protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
+    protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
-        return EXCLUDED_PATHS.stream().anyMatch(path::equals);
+        return path.startsWith("/api/auth/")
+               || path.startsWith("/actuator/");
     }
-
 }

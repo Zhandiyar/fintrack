@@ -91,6 +91,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             "/api/auth/forgot-password",
             "/api/auth/reset-password",
             "/api/auth/google-signin",
+            "/api/auth/apple",
             "/api/auth/refresh",
             "/actuator/health",
             "/actuator/info"

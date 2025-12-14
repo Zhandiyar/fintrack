@@ -54,17 +54,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(PathRequest.toStaticResources().atCommonLocations()).permitAll()
-                        .requestMatchers(HttpMethod.POST,
-                                "/api/auth/register",
-                                "/api/auth/login",
-                                "/api/auth/guest",
-                                "/api/auth/forgot-password",
-                                "/api/auth/reset-password",
-                                "/api/auth/google-signin",
-                                "/api/auth/apple",
-                                "/api/auth/refresh",
-                                "/api/auth/logout"
-                        ).permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET,
                                 "/actuator/**",
                                 "/swagger-ui/**",

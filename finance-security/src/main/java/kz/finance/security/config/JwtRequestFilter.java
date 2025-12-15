@@ -54,9 +54,8 @@ public class JwtRequestFilter extends OncePerRequestFilter {
 
                 auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
-                if (SecurityContextHolder.getContext().getAuthentication() == null) {
-                    SecurityContextHolder.getContext().setAuthentication(auth);
-                }            }
+                SecurityContextHolder.getContext().setAuthentication(auth);
+            }
         }
 
         filterChain.doFilter(request, response);
@@ -64,8 +63,6 @@ public class JwtRequestFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getRequestURI();
-        return path.startsWith("/api/auth/")
-               || path.startsWith("/actuator/");
+        return request.getRequestURI().startsWith("/actuator/");
     }
 }

@@ -57,12 +57,16 @@ public class JwtRequestFilter extends OncePerRequestFilter {
                 SecurityContextHolder.getContext().setAuthentication(auth);
             }
         }
+        log.warn(">>> JWT FILTER INVOKED: {} {}", request.getMethod(), request.getRequestURI());
 
         filterChain.doFilter(request, response);
     }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return request.getRequestURI().startsWith("/actuator/");
+        String path = request.getRequestURI();
+        boolean skip = path.startsWith("/actuator/") || path.startsWith("/api/auth/");
+        log.warn(">>> shouldNotFilter={}, path={}", skip, path);
+        return skip;
     }
 }

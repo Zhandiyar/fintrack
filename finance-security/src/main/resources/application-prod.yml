@@ -31,9 +31,12 @@ server:
 logging:
   level:
     root: INFO
-    org.springframework.security: DEBUG
     org.springframework.web: WARN
     org.hibernate: ERROR
+    org.springframework.security: TRACE
+    org.springframework.security.web.FilterChainProxy: TRACE
+    org.springframework.security.web.access: TRACE
+    org.springframework.security.web.authentication: TRACE
 
 management:
   endpoints:

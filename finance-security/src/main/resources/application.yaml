@@ -13,7 +13,10 @@ spring:
 
 logging:
   level:
-    org.springframework.security: DEBUG
+    org.springframework.security: TRACE
+    org.springframework.security.web.FilterChainProxy: TRACE
+    org.springframework.security.web.access: TRACE
+    org.springframework.security.web.authentication: TRACE
 
 resend:
   api:

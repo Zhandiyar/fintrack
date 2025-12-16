@@ -2,6 +2,7 @@ package kz.finance.security.config;
 
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -21,6 +22,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 @EnableMethodSecurity
 @EnableWebSecurity
 @RequiredArgsConstructor
+@Slf4j
 public class SecurityConfig {
 
     private final JwtRequestFilter jwtRequestFilter;
@@ -37,7 +39,7 @@ public class SecurityConfig {
     @Bean
     @Order(1)
     public SecurityFilterChain apiChain(HttpSecurity http) throws Exception {
-        System.out.println(">>> USING MY SecurityFilterChain");
+        log.warn(">>> REGISTERING API SECURITY CHAIN");
         http
                 .securityMatcher("/api/**")
                 .csrf(AbstractHttpConfigurer::disable)

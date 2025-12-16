@@ -38,8 +38,8 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         if (StringUtils.hasText(header) && header.startsWith("Bearer ")) {
             String token = header.substring(7);
 
-            if (tokenProvider.validateToken(token)) {
-                Claims claims = tokenProvider.parseClaims(token);
+            Claims claims = tokenProvider.validateAndGetClaims(token);
+            if (claims != null) {
                 String username = claims.getSubject();
 
                 UserDetails userDetails =
@@ -57,7 +57,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
                 SecurityContextHolder.getContext().setAuthentication(auth);
             }
         }
-        log.warn(">>> JWT FILTER INVOKED: {} {}", request.getMethod(), request.getRequestURI());
+        log.debug("JWT filter invoked: {} {}", request.getMethod(), request.getRequestURI());
 
         filterChain.doFilter(request, response);
     }

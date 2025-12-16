@@ -28,7 +28,11 @@ public class JwtRequestFilter extends OncePerRequestFilter {
 
     @Value("${spring.security.jwt.secret}")
     private String jwtSecret;
+    @Value("${spring.security.jwt.issuer}")
+    private String issuer;
 
+    @Value("${spring.security.jwt.audience}")
+    private String audience;
     @Override
     protected void doFilterInternal(
             HttpServletRequest request,
@@ -48,8 +52,8 @@ public class JwtRequestFilter extends OncePerRequestFilter {
                     .setSigningKey(
                             Keys.hmacShaKeyFor(jwtSecret.getBytes(StandardCharsets.UTF_8))
                     )
-                    .requireIssuer("finance-security")
-                    .requireAudience("fintrack")
+                    .requireIssuer(issuer)
+                    .requireAudience(audience)
                     .build()
                     .parseClaimsJws(header.substring(7))
                     .getBody();

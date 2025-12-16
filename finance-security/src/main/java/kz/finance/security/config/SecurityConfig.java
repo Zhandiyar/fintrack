@@ -38,6 +38,16 @@ public class SecurityConfig {
 
     @Bean
     @Order(1)
+    SecurityFilterChain authChain(HttpSecurity http) throws Exception {
+        http
+                .securityMatcher("/api/auth/**")
+                .csrf(AbstractHttpConfigurer::disable)
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
+        return http.build();
+    }
+
+    @Bean
+    @Order(2)
     public SecurityFilterChain apiChain(HttpSecurity http) throws Exception {
         log.warn(">>> REGISTERING API SECURITY CHAIN");
         http

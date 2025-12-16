@@ -5,9 +5,8 @@ import kz.finance.fintrack.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
@@ -18,7 +17,7 @@ public class UserService {
 
     public UserEntity getByLogin(String userName) {
         return repository.findByUsername(userName)
-            .orElseThrow(() -> new IllegalArgumentException("User not found"));
+            .orElseThrow(() -> new UsernameNotFoundException("User not found"));
     }
 
     public String getCurrentLogin() {

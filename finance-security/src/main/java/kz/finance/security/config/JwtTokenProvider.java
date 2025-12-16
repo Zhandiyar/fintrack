@@ -25,6 +25,11 @@ public class JwtTokenProvider {
     @Value("${jwt.access.expiration.ms}")
     private long jwtExpirationInMs;
 
+    @Value("${jwt.issuer}")
+    private String issuer;
+
+    @Value("${jwt.audience}")
+    private String audience;
     private Key getSigningKey() {
         return Keys.hmacShaKeyFor(jwtSecret.getBytes());
     }
@@ -34,6 +39,8 @@ public class JwtTokenProvider {
         Date expiry = new Date(now.getTime() + jwtExpirationInMs);
 
         return Jwts.builder()
+                .setIssuer(issuer)
+                .setAudience(audience)
                 .setSubject(user.getUsername())
                 .claim("roles", user.getRoles())
                 .setIssuedAt(now)
@@ -45,18 +52,19 @@ public class JwtTokenProvider {
     public Claims parseClaims(String token) {
         return Jwts.parserBuilder()
                 .setSigningKey(getSigningKey())
+                .requireIssuer(issuer)
+                .requireAudience(audience)
                 .build()
                 .parseClaimsJws(token)
                 .getBody();
     }
 
-    public boolean validateToken(String token) {
+    public Claims validateAndGetClaims(String token) {
         try {
-            parseClaims(token);
-            return true;
+            return parseClaims(token);
         } catch (JwtException e) {
             log.warn("Invalid JWT: {}", e.getMessage());
-            return false;
+            return null;
         }
     }
 }

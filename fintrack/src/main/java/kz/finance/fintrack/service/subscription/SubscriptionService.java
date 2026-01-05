@@ -1,154 +1,208 @@
 package kz.finance.fintrack.service.subscription;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.common.lang.Nullable;
-import kz.finance.fintrack.dto.subscription.EntitlementResponse;
-import kz.finance.fintrack.dto.subscription.EntitlementStatus;
-import kz.finance.fintrack.dto.subscription.VerifyRequest;
-import kz.finance.fintrack.model.SubscriptionEntity;
-import kz.finance.fintrack.model.SubscriptionState;
-import kz.finance.fintrack.model.UserEntity;
-import kz.finance.fintrack.repository.SubscriptionRepository;
+import kz.finance.fintrack.dto.subscription.*;
+import kz.finance.fintrack.exception.FinTrackException;
+import kz.finance.fintrack.model.*;
+import kz.finance.fintrack.repository.IapIdempotencyRepository;
 import kz.finance.fintrack.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.Instant;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
+import java.util.Objects;
 
 @Service
 @Slf4j
 @RequiredArgsConstructor
 public class SubscriptionService {
 
-    private final SubscriptionRepository repo;
+    private final IapIdempotencyRepository idemRepo;
+    private final Clock clock;
+
     private final GooglePlayService gp;
+    private final AppleSk2Verifier appleSk2;
     private final UserService userService;
+    private final ObjectMapper objectMapper;
 
-    // простейшее хранилище идемпотентности (можно заменить на БД)
-    private final ConcurrentMap<String, EntitlementResponse> idemCache = new ConcurrentHashMap<>();
+    private final SubscriptionPersistenceService persistence;
 
-    @Transactional
-    public EntitlementResponse verifyAndSave(VerifyRequest req, @Nullable String idemKey) {
-        if (idemKey != null) {
-            var cached = idemCache.get(idemKey);
-            if (cached != null) {
-                log.info("[IAP] idemHit key={} productId={} user={}", idemKey, req.productId(), userService.getCurrentUser().getId());
-                return cached;
-            }
-        }
+    // ===== GOOGLE (network outside TX) =====
+    public EntitlementResponse verifyGoogleAndSave(VerifyRequest req, @Nullable String idemKey) {
+        var user = userService.getCurrentUser();
+
+        var cached = findIdemCached(user, SubscriptionProvider.GOOGLE, idemKey);
+        if (cached != null) return cached;
 
         var snap = gp.verify(req.packageName(), req.productId(), req.purchaseToken(), true);
-        var now = Instant.now();
-        var ent = gp.toEntitlement(snap, now);
+        var now = Instant.now(clock);
 
-        UserEntity user = userService.getCurrentUser();
-        SubscriptionEntity sub = repo.findByPurchaseToken(req.purchaseToken())
-                .orElseGet(SubscriptionEntity::new);
+        var saved = persistence.persistGoogle(
+                user,
+                snap.getProductId(),
+                snap.getPurchaseToken(),
+                snap.getStart(),
+                snap.getExpiry(),
+                snap.getGraceUntil(),
+                snap.getPaymentState(),
+                snap.getCancelReason(),
+                snap.isAutoRenewing(),
+                snap.getAcknowledgementState(),
+                now
+        );
 
-        sub.setUser(user);
-        sub.setProductId(snap.getProductId());
-        sub.setPurchaseToken(snap.getPurchaseToken());
-        sub.setPurchaseDate(snap.getStart() != null ? snap.getStart() : Instant.now());
-        sub.setExpiryDate(snap.getExpiry());
-        sub.setActive(ent == EntitlementStatus.ENTITLED || ent == EntitlementStatus.IN_GRACE);
-        sub.setPurchaseState(mapToSubscriptionState(snap.getPaymentState()));
-        sub.setCancelReason(snap.getCancelReason());
-        sub.setAutoRenewing(snap.isAutoRenewing());
-        sub.setAcknowledgementState(snap.getAcknowledgementState());
+        var ent = EntitlementResolver.resolve(saved.isRevoked(), saved.getExpiryDate(), saved.getGraceUntil(), now);
+        var response = new EntitlementResponse(ent, saved.getExpiryDate(), saved.getProductId(), saved.isAutoRenewing());
 
-        repo.save(sub);
-
-        var response = new EntitlementResponse(ent.name(), snap.getExpiry(), snap.getProductId(), snap.isAutoRenewing());
-        if (idemKey != null) idemCache.putIfAbsent(idemKey, response);
+        saveIdem(user, SubscriptionProvider.GOOGLE, idemKey, response);
         return response;
     }
 
-    @Transactional(readOnly = true)
-    public EntitlementResponse myEntitlement() {
-        return repo.findTopByUserOrderByExpiryDateDesc(userService.getCurrentUser())
-                .map(s -> {
-                    Instant now = Instant.now();
-                    Instant expiry = s.getExpiryDate();
+    // ===== APPLE (network outside TX) =====
+    public EntitlementResponse verifyAppleAndSave(AppleVerifyRequest req, @Nullable String idemKey) {
+        var user = userService.getCurrentUser();
 
-                    EntitlementStatus ent;
-                    if (s.getCancelReason() != null && s.getCancelReason() == 1) {
-                        ent = EntitlementStatus.REVOKED;               // возврат/чарджбэк
-                    } else if (now.isBefore(expiry)) {
-                        ent = s.isActive() ? EntitlementStatus.ENTITLED // активна
-                                : EntitlementStatus.IN_GRACE; // доступ ещё есть, но не активна (по вашей логике)
-                    } else {
-                        ent = EntitlementStatus.EXPIRED;
-                    }
+        var cached = findIdemCached(user, SubscriptionProvider.APPLE, idemKey);
+        if (cached != null) return cached;
 
-                    // опционально: мягко синхронизировать признак active
-                    boolean shouldBeActive = (ent == EntitlementStatus.ENTITLED || ent == EntitlementStatus.IN_GRACE);
-                    if (s.isActive() != shouldBeActive) {
-                        s.setActive(shouldBeActive);
-                        repo.save(s);
-                    }
+        var snap = appleSk2.verifyByTransactionId(req.transactionId(), req.productId());
+        var now = Instant.now(clock);
 
-                    return new EntitlementResponse(ent.name(), expiry, s.getProductId(), s.isAutoRenewing());
-                })
-                .orElse(new EntitlementResponse(EntitlementStatus.NONE.name(), null, null, false));
+        String origTx = normalize(snap.originalTransactionId());
+        String txId   = normalize(snap.transactionId());
+
+        // важно: чтобы был хотя бы один стабильный ключ
+        if (origTx == null && txId == null) {
+            throw new FinTrackException(400, "Apple transactionId/originalTransactionId is empty");
+        }
+
+        var saved = persistence.persistApple(
+                user,
+                snap.productId(),
+                txId,
+                origTx,
+                snap.purchasedAt(),
+                snap.expiresAt(),
+                snap.graceUntil(),
+                snap.autoRenew(),
+                snap.environment(),
+                snap.revoked(),
+                snap.revocationDate(),
+                now
+        );
+
+        var ent = EntitlementResolver.resolve(saved.isRevoked(), saved.getExpiryDate(), saved.getGraceUntil(), now);
+        var response = new EntitlementResponse(ent, saved.getExpiryDate(), saved.getProductId(), saved.isAutoRenewing());
+
+        saveIdem(user, SubscriptionProvider.APPLE, idemKey, response);
+        return response;
     }
 
+    // ===== ME =====
+    public EntitlementResponse myEntitlement() {
+        var user = userService.getCurrentUser();
+        var now = Instant.now(clock);
 
-    /**
-     * RTDN обновления (ниже — парсер).
-     */
-    @Transactional
-    public void applyRtnd(GoogleWebhookParser.DeveloperNotification n) {
-        if (n.subscriptionNotification() == null) {
-            log.warn("⚠️ RTDN without subscriptionNotification: {}", n);
-            return;
-        }
+        var best = persistence.findBestForUser(user, now);
+        if (best == null) return new EntitlementResponse(EntitlementStatus.NONE, null, null, false);
+
+        var ent = EntitlementResolver.resolve(best.isRevoked(), best.getExpiryDate(), best.getGraceUntil(), now);
+        return new EntitlementResponse(ent, best.getExpiryDate(), best.getProductId(), best.isAutoRenewing());
+    }
+
+    // ===== RTDN (network outside TX) =====
+    public void applyGoogleRtnd(GoogleWebhookParser.DeveloperNotification n) {
+        if (n.subscriptionNotification() == null) return;
+
         var sn = n.subscriptionNotification();
         String token = sn.purchaseToken();
-        String maskedToken = token != null && token.length() > 6
-                ? token.substring(0, 4) + "..." + token.substring(token.length() - 3)
-                : token;
+        if (token == null || token.isBlank()) return;
 
-        log.info("📬 RTDN event: package={} type={} sku={} tokenMasked={}",
-                n.packageName(), sn.notificationType(), sn.subscriptionId(), maskedToken);
+        String productId = sn.subscriptionId();
+        if (productId == null || productId.isBlank()) return;
 
-        // просто пересинхронизируемся с Google
+        if (!Objects.equals(gp.expectedPackageName(), n.packageName())) {
+            log.warn("RTDN ignored: package mismatch. got={} expected={}", n.packageName(), gp.expectedPackageName());
+            return;
+        }
+
+        if (!persistence.existsGoogleByToken(token)) {
+            log.warn("RTDN for unknown token. sku={} token={}", sn.subscriptionId(), token);
+            return;
+        }
         try {
             var snap = gp.verify(n.packageName(), sn.subscriptionId(), token, true);
-            var ent = gp.toEntitlement(snap, Instant.now());
-            log.debug("✅ Verification result: entitlement={}, expiry={}", ent, snap.getExpiry());
+            boolean shouldRevoke = GoogleRtdnTypes.isRevokedOrRefunded(sn.notificationType());
 
-
-            var sub = repo.findByPurchaseToken(token).orElseGet(SubscriptionEntity::new);
-            sub.setProductId(sn.subscriptionId());
-            sub.setPurchaseToken(token);
-            sub.setPurchaseDate(snap.getStart() != null
-                    ? snap.getStart()
-                    : (sub.getPurchaseDate() == null ? Instant.now() : sub.getPurchaseDate()));
-            sub.setExpiryDate(snap.getExpiry());
-            sub.setActive(ent == EntitlementStatus.ENTITLED || ent == EntitlementStatus.IN_GRACE);
-            sub.setPurchaseState(mapToSubscriptionState(snap.getPaymentState()));
-            sub.setCancelReason(snap.getCancelReason());
-            sub.setAutoRenewing(snap.isAutoRenewing());
-            sub.setAcknowledgementState(snap.getAcknowledgementState());
-            repo.save(sub);
-            log.info("💾 Subscription updated: sku={} active={} expiry={}", sn.subscriptionId(), sub.isActive(), sub.getExpiryDate());
-
+            persistence.persistGoogleRtnd(
+                    token,
+                    shouldRevoke,
+                    snap.getProductId(),
+                    snap.getStart(),
+                    snap.getExpiry(),
+                    snap.getGraceUntil(),
+                    snap.getPaymentState(),
+                    snap.getCancelReason(),
+                    snap.isAutoRenewing(),
+                    snap.getAcknowledgementState(),
+                    Instant.now(clock)
+            );
         } catch (Exception e) {
-            log.error("❌ RTDN sync error: sku={} tokenMasked={} msg={}", sn.subscriptionId(), maskedToken, e.getMessage(), e);
+            log.error("RTDN sync error: sku={} msg={}", sn.subscriptionId(), e.getMessage(), e);
         }
     }
 
-    private SubscriptionState mapToSubscriptionState(Integer paymentState) {
-        if (paymentState == null) return SubscriptionState.UNKNOWN;
-        return switch (paymentState) {
-            case 0 -> SubscriptionState.PENDING;
-            case 1 -> SubscriptionState.ACTIVE;
-            case 2 -> SubscriptionState.FREE_TRIAL;
-            case 3 -> SubscriptionState.PENDING_UPGRADE;
-            default -> SubscriptionState.UNKNOWN;
-        };
+    // ===== Idempotency =====
+
+    private EntitlementResponse findIdemCached(UserEntity user, SubscriptionProvider provider, @Nullable String idemKey) {
+        if (idemKey == null || idemKey.isBlank()) return null;
+
+        return idemRepo.findByUserAndProviderAndIdemKey(user, provider, idemKey)
+                .map(e -> {
+                    try {
+                        return objectMapper.readValue(e.getResponseJson(), EntitlementResponse.class);
+                    } catch (Exception ex) {
+                        log.warn("Failed to parse idempotency cached response. idemKey={} provider={}", idemKey, provider, ex);
+                        return null;
+                    }
+                })
+                .orElse(null);
+    }
+
+    private void saveIdem(UserEntity user, SubscriptionProvider provider, @Nullable String idemKey, EntitlementResponse response) {
+        if (idemKey == null || idemKey.isBlank()) return;
+
+        try {
+            var json = objectMapper.writeValueAsString(response);
+
+            var rec = new IapIdempotencyEntity();
+            rec.setUser(user);
+            rec.setProvider(provider);
+            rec.setIdemKey(idemKey);
+            rec.setResponseJson(json);
+
+            idemRepo.save(rec);
+        } catch (DataIntegrityViolationException race) {
+            // гонка — норм
+        } catch (Exception e) {
+            log.warn("Failed to save idempotency record: {}", e.getMessage());
+        }
+    }
+
+    private static String normalize(String s) {
+        if (s == null) return null;
+        String t = s.trim();
+        return t.isEmpty() ? null : t;
+    }
+
+    public static final class GoogleRtdnTypes {
+        private GoogleRtdnTypes() {}
+        public static boolean isRevokedOrRefunded(Integer type) {
+            return type != null && (type == 12 || type == 13);
+        }
     }
 }

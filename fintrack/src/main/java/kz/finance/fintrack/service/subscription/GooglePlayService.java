@@ -38,6 +38,9 @@ public class GooglePlayService {
                 .map(String::trim).filter(s -> !s.isBlank()).collect(Collectors.toSet());
     }
 
+    public String expectedPackageName() {
+        return packageNameProp;
+    }
     /** Проверить подписку и вернуть «снимок» данных Google. */
     public GoogleSnapshot verify(String packageName, String productId, String purchaseToken, boolean tryAcknowledge) {
         validateInput(packageName, productId);
@@ -45,7 +48,8 @@ public class GooglePlayService {
         Map<String, Object> body = google.verifyPurchase(packageName, productId, purchaseToken);
         if (body == null) throw new IllegalStateException("Empty response from Google");
 
-        long expiryMs = parseLong(body.get("expiryTimeMillis"), 0L);
+        long expiryMs = parseLong(body.get("expiryTimeMillis"), -1L);
+        if (expiryMs <= 0) throw new IllegalStateException("Google response missing expiryTimeMillis");
         Instant expiry = Instant.ofEpochMilli(expiryMs);
 
         boolean autoRenewing = Boolean.TRUE.equals(body.get("autoRenewing"));
@@ -94,7 +98,7 @@ public class GooglePlayService {
         try { return v == null ? null : Integer.valueOf(String.valueOf(v)); }
         catch (Exception e) { return null; }
     }
-    
+
     /** Универсальный «снимок» Google-данных. */
     @Getter @AllArgsConstructor
     public static class GoogleSnapshot {
@@ -109,21 +113,18 @@ public class GooglePlayService {
         private final Instant graceUntil;     // nullable
     }
 
-    /** Маппинг Google → EntitlementStatus (в тон фронту). */
-    public EntitlementStatus toEntitlement(GoogleSnapshot s, Instant now) {
-        // отозвана? (REVOKED/REFUNDED/CHARGEBACK) — RTDN REVOKED, но подстрахуемся
-        if (s.getCancelReason() != null && s.getCancelReason() == 1 /* system */) {
+    public EntitlementStatus toEntitlement(GoogleSnapshot s, Instant now, boolean revokedFlagFromDbOrRtnd) {
+        if (revokedFlagFromDbOrRtnd) {
             return EntitlementStatus.REVOKED;
         }
-        // grace period
         if (s.getGraceUntil() != null && now.isBefore(s.getGraceUntil())) {
             return EntitlementStatus.IN_GRACE;
         }
-        // активна?
         if (now.isBefore(s.getExpiry())) {
             return EntitlementStatus.ENTITLED;
         }
         return EntitlementStatus.EXPIRED;
     }
+
 }
 

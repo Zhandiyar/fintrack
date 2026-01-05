@@ -28,9 +28,10 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
-                                "/api/auth/**",
+                                "/api/subscription/google/rtnd",
+                                "/api/subscription/apple/notifications",
                                 "/actuator/**",
-                                "/api/subscription/google/rtnd"
+                                "/api/auth/**"
                         ).permitAll()
                         .anyRequest().authenticated()
                 )

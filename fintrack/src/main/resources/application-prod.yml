@@ -54,6 +54,19 @@ google:
   package-name: ${GOOGLE_PACKAGE_NAME}
   allowed-products: ${GOOGLE_ALLOWED_PRODUCTS}
   service-account-path: ${GOOGLE_SERVICE_ACCOUNT_PATH}
+apple:
+  bundle-id: ${APPLE_BUNDLE_ID}
+  issuer-id: ${APPLE_ISSUER_ID}
+  key-id: ${APPLE_KEY_ID}
+  app-apple-id: ${APPLE_APP_ID}
+  preferred-environment: ${APPLE_PREFERRED_ENVIRONMENT:PRODUCTION}
+  enable-online-checks: ${APPLE_ENABLE_ONLINE_CHECKS:true}
+  allowed-products: ${APPLE_ALLOWED_PRODUCTS}
+
+  private-key-p8: ${APPLE_PRIVATE_KEY_P8_PATH}
+  root-certs:
+    - classpath:apple/AppleRootCA-G3.cer
+    - classpath:apple/AppleIncRootCertificate.cer
 
 deepseek:
   api-key: ${DEEPSEEK_API_KEY}

@@ -1,18 +1,6 @@
 package kz.finance.fintrack.model;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Index;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.SequenceGenerator;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -21,10 +9,7 @@ import java.time.Instant;
 @Entity
 @Getter
 @Setter
-@Table(name = "subscriptions", indexes = {
-        @Index(name = "ux_purchase_token", columnList = "purchaseToken", unique = true),
-        @Index(name = "idx_user_expiry", columnList = "user_id, expiryDate")
-})
+@Table(name = "subscriptions")
 public class SubscriptionEntity {
 
     @Id
@@ -36,31 +21,69 @@ public class SubscriptionEntity {
     @JoinColumn(name = "user_id")
     private UserEntity user;
 
-    @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "provider", nullable = false)
+    private SubscriptionProvider provider = SubscriptionProvider.GOOGLE;
+
+    @Column(name = "product_id", nullable = false)
     private String productId;
 
-    @Column(nullable = false, unique = true)
+    @Column(name = "purchase_token", nullable = false)
     private String purchaseToken;
 
-    @Column(nullable = false)
+    @Column(name = "purchase_date", nullable = false)
     private Instant purchaseDate;
 
-    @Column(nullable = false)
+    @Column(name = "expiry_date")
     private Instant expiryDate;
 
-    @Column(nullable = false)
+    @Column(name = "grace_until")
+    private Instant graceUntil;
+
+    @Column(name = "active", nullable = false)
     private boolean active;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(name = "purchase_state", nullable = false)
     private SubscriptionState purchaseState;
 
+    @Column(name = "cancel_reason")
     private Integer cancelReason;
 
-    @Column(nullable = false)
+    @Column(name = "auto_renewing", nullable = false)
     private boolean autoRenewing = true;
 
-    @Column(nullable = false)
-    private int acknowledgementState = 0; // 0 - not acked, 1 - acked
-}
+    @Column(name = "acknowledgement_state", nullable = false)
+    private int acknowledgementState = 0;
 
+    @Column(name = "original_transaction_id")
+    private String originalTransactionId;
+
+    @Column(name = "revoked", nullable = false)
+    private boolean revoked = false;
+
+    // ===== Apple-specific =====
+
+    @Column(name = "apple_transaction_id", length = 64)
+    private String appleTransactionId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "environment", length = 16)
+    private StoreEnvironment environment;
+
+    @Column(name = "revocation_date")
+    private Instant revocationDate;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 16)
+    private SubscriptionStatus status = SubscriptionStatus.NONE;
+
+    @Column(name = "last_verified_at", nullable = false)
+    private Instant lastVerifiedAt;
+
+    @PrePersist
+    void prePersist() {
+        if (status == null) status = SubscriptionStatus.NONE;
+        if (purchaseState == null) purchaseState = SubscriptionState.UNKNOWN;
+    }
+}

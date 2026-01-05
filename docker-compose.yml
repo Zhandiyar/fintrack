@@ -115,9 +115,19 @@ services:
       - GOOGLE_PACKAGE_NAME=kz.finance.fintrack
       - GOOGLE_ALLOWED_PRODUCTS=fintrack_pro_month,fintrack_pro_year
       - GOOGLE_SERVICE_ACCOUNT_PATH=/app/secure/google-service-account.json
+      # --- Apple (relaxed binding) ---
+      - APPLE_BUNDLE_ID=pro.fintrack.app
+      - APPLE_ISSUER_ID=${APPLE_ISSUER_ID}
+      - APPLE_KEY_ID=${APPLE_KEY_ID}
+      - APPLE_APP_ID=${APPLE_APP_ID}
+      - APPLE_PREFERRED_ENVIRONMENT=PRODUCTION
+      - APPLE_ENABLE_ONLINE_CHECKS=true
+      - APPLE_ALLOWED_PRODUCTS=fintrack_pro_month,fintrack_pro_year
+      - APPLE_PRIVATE_KEY_P8_PATH=file:/app/secure/AuthKey.p8
     volumes:
       # монтируем JSON ключ внутрь контейнера только для чтения
       - /root/fintrack/secure/google-service-account.json:/app/secure/google-service-account.json:ro
+      - /root/fintrack/secure/AuthKey.p8:/app/secure/AuthKey.p8:ro
     depends_on:
       - db
       - migrator

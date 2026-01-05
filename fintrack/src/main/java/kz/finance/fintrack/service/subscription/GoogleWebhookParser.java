@@ -1,27 +1,39 @@
 package kz.finance.fintrack.service.subscription;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import kz.finance.fintrack.exception.FinTrackException;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.util.Base64;
 import java.util.Map;
 
 @Component
+@RequiredArgsConstructor
 public class GoogleWebhookParser {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private final ObjectMapper mapper;
 
     /** Официальный формат: { message: { data: base64(JSON) } } */
-    public static DeveloperNotification parsePubSub(Map<String, Object> body) {
+    public DeveloperNotification parsePubSub(Map<String, Object> body) {
         try {
-            Map<?, ?> msg = (Map<?, ?>) body.get("message");
-            String b64 = (String) msg.get("data");
+            Object msgObj = body.get("message");
+            if (!(msgObj instanceof Map<?, ?> msg)) {
+                throw new FinTrackException(400, "RTDN payload missing message");
+            }
+            Object dataObj = msg.get("data");
+            if (!(dataObj instanceof String b64) || b64.isBlank()) {
+                throw new FinTrackException(400, "RTDN payload missing message.data");
+            }
             byte[] json = Base64.getDecoder().decode(b64);
-            return MAPPER.readValue(json, DeveloperNotification.class);
+            return mapper.readValue(json, DeveloperNotification.class);
+        } catch (FinTrackException e) {
+            throw e;
         } catch (Exception e) {
-            throw new RuntimeException("RTDN parse error", e);
+            throw new FinTrackException(400, "RTDN parse error: invalid payload");
         }
     }
+
 
     // === Вспомогательные записи под RTDN ===
     public record DeveloperNotification(
@@ -34,7 +46,7 @@ public class GoogleWebhookParser {
     ) {}
 
     public record SubscriptionNotification(
-            Integer notificationType,   // см. mapping ниже
+            Integer notificationType,
             String purchaseToken,
             String subscriptionId
     ) {}

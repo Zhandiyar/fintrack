@@ -1,0 +1,35 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+    open-in-view: false
+
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:sql/test-schema.sql
+
+logging:
+  level:
+    org.hibernate.SQL: warn
+    org.hibernate.type.descriptor.sql: warn
+
+google:
+  api-url: https://androidpublisher.googleapis.com/androidpublisher/v3
+  package-name: kz.finance.fintrack
+  allowed-products: fintrack_pro_month,fintrack_pro_year
+  service-account-path: classpath:google/service-account-test.json
+
+apple:
+  bundle-id: test.bundle
+  issuer-id: test-issuer
+  key-id: test-key
+  app-apple-id: test-app
+  preferred-environment: SANDBOX
+  enable-online-checks: false
+  allowed-products: fintrack_pro_month,fintrack_pro_year
+  private-key-p8: classpath:apple/test-key.p8

@@ -1,9 +1,8 @@
 package kz.finance.fintrack.service.subscription;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import kz.finance.fintrack.dto.subscription.VerifyRequest;
+import kz.finance.fintrack.dto.subscription.GoogleVerifyRequest;
 import kz.finance.fintrack.model.SubscriptionEntity;
-import kz.finance.fintrack.model.SubscriptionProvider;
 import kz.finance.fintrack.model.UserEntity;
 import kz.finance.fintrack.repository.IapIdempotencyRepository;
 import kz.finance.fintrack.service.UserService;
@@ -44,7 +43,7 @@ class SubscriptionServiceIdempotencyExtraTest {
                 persistence
         );
 
-        when(gp.verify(anyString(), anyString(), anyString(), eq(true)))
+        when(gp.verify(anyString(), anyString(), eq(true)))
                 .thenReturn(new GooglePlayService.GoogleSnapshot(
                         "fintrack_pro_month",
                         "t",
@@ -66,7 +65,7 @@ class SubscriptionServiceIdempotencyExtraTest {
         when(persistence.persistGoogle(eq(u), any(), any(), any(), any(), any(), any(), any(), anyBoolean(), any(), any()))
                 .thenReturn(saved);
 
-        service.verifyGoogleAndSave(new VerifyRequest("t", "fintrack_pro_month", "kz.finance.fintrack"), "   ");
+        service.verifyGoogleAndSave(new GoogleVerifyRequest("t", "fintrack_pro_month"), "   ");
 
         verify(idem, never()).findByUserAndProviderAndIdemKey(any(), any(), any());
         verify(idem, never()).save(any());
@@ -93,7 +92,7 @@ class SubscriptionServiceIdempotencyExtraTest {
                 persistence
         );
 
-        when(gp.verify(anyString(), anyString(), anyString(), eq(true)))
+        when(gp.verify(anyString(), anyString(), eq(true)))
                 .thenReturn(new GooglePlayService.GoogleSnapshot(
                         "fintrack_pro_month",
                         "t",
@@ -120,7 +119,7 @@ class SubscriptionServiceIdempotencyExtraTest {
 
         assertThatCode(() ->
                 service.verifyGoogleAndSave(
-                        new VerifyRequest("t", "fintrack_pro_month", "kz.finance.fintrack"),
+                        new GoogleVerifyRequest("t", "fintrack_pro_month"),
                         "idem-dup"
                 )
         ).doesNotThrowAnyException();

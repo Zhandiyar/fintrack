@@ -3,7 +3,7 @@ package kz.finance.fintrack.service.subscription;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import kz.finance.fintrack.dto.subscription.EntitlementResponse;
 import kz.finance.fintrack.dto.subscription.EntitlementStatus;
-import kz.finance.fintrack.dto.subscription.VerifyRequest;
+import kz.finance.fintrack.dto.subscription.GoogleVerifyRequest;
 import kz.finance.fintrack.model.SubscriptionProvider;
 import kz.finance.fintrack.model.UserEntity;
 import kz.finance.fintrack.repository.IapIdempotencyRepository;
@@ -48,7 +48,7 @@ class SubscriptionServiceTest {
         when(idemRepo.findByUserAndProviderAndIdemKey(eq(user), eq(SubscriptionProvider.GOOGLE), eq("k1")))
                 .thenReturn(Optional.of(idemEntity));
 
-        var res = service.verifyGoogleAndSave(new VerifyRequest("t", "fintrack_pro_month", "kz.finance.fintrack"), "k1");
+        var res = service.verifyGoogleAndSave(new GoogleVerifyRequest("t", "fintrack_pro_month"), "k1");
 
         assertThat(res.status()).isEqualTo(EntitlementStatus.ENTITLED);
         verifyNoInteractions(gp);
@@ -84,7 +84,7 @@ class SubscriptionServiceTest {
                 null
         );
 
-        when(gp.verify(eq("kz.finance.fintrack"), eq("fintrack_pro_month"), eq("token123"), eq(true)))
+        when(gp.verify(eq("fintrack_pro_month"), eq("token123"), eq(true)))
                 .thenReturn(snap);
 
         var saved = new kz.finance.fintrack.model.SubscriptionEntity();
@@ -96,10 +96,10 @@ class SubscriptionServiceTest {
         when(persistence.persistGoogle(eq(user), any(), any(), any(), any(), any(), any(), any(), anyBoolean(), any(), any()))
                 .thenReturn(saved);
 
-        var res = service.verifyGoogleAndSave(new VerifyRequest("token123", "fintrack_pro_month", "kz.finance.fintrack"), null);
+        var res = service.verifyGoogleAndSave(new GoogleVerifyRequest("token123", "fintrack_pro_month"), null);
 
         assertThat(res.status()).isEqualTo(EntitlementStatus.ENTITLED);
-        verify(gp).verify("kz.finance.fintrack", "fintrack_pro_month", "token123", true);
+        verify(gp).verify("fintrack_pro_month", "token123", true);
         verify(persistence).persistGoogle(eq(user), any(), any(), any(), any(), any(), any(), any(), anyBoolean(), any(), any());
     }
 
@@ -131,7 +131,7 @@ class SubscriptionServiceTest {
                 null
         );
 
-        when(gp.verify(anyString(), anyString(), anyString(), eq(true))).thenReturn(snap);
+        when(gp.verify(anyString(), anyString(), eq(true))).thenReturn(snap);
 
         var saved = new kz.finance.fintrack.model.SubscriptionEntity();
         saved.setProductId("fintrack_pro_month");
@@ -142,7 +142,7 @@ class SubscriptionServiceTest {
         when(persistence.persistGoogle(eq(user), any(), any(), any(), any(), any(), any(), any(), anyBoolean(), any(), any()))
                 .thenReturn(saved);
 
-        service.verifyGoogleAndSave(new VerifyRequest("token123", "fintrack_pro_month", "kz.finance.fintrack"), "idem-1");
+        service.verifyGoogleAndSave(new GoogleVerifyRequest("token123", "fintrack_pro_month"), "idem-1");
 
         verify(idemRepo).save(argThat(e ->
                 e.getUser() == user
@@ -174,7 +174,7 @@ class SubscriptionServiceTest {
                 .thenReturn(Optional.of(idemEntity));
 
         var expiry = NOW.plusSeconds(3600);
-        when(gp.verify(anyString(), anyString(), anyString(), eq(true))).thenReturn(
+        when(gp.verify(anyString(), anyString(), eq(true))).thenReturn(
                 new GooglePlayService.GoogleSnapshot("fintrack_pro_month", "t", NOW.minusSeconds(60), expiry, true, 1, 1, null, null)
         );
 
@@ -187,9 +187,9 @@ class SubscriptionServiceTest {
         when(persistence.persistGoogle(eq(user), any(), any(), any(), any(), any(), any(), any(), anyBoolean(), any(), any()))
                 .thenReturn(saved);
 
-        var res = service.verifyGoogleAndSave(new VerifyRequest("t", "fintrack_pro_month", "kz.finance.fintrack"), "k1");
+        var res = service.verifyGoogleAndSave(new GoogleVerifyRequest("t", "fintrack_pro_month"), "k1");
 
         assertThat(res.status()).isEqualTo(EntitlementStatus.ENTITLED);
-        verify(gp).verify(anyString(), anyString(), anyString(), eq(true));
+        verify(gp).verify(anyString(), anyString(), eq(true));
     }
 }

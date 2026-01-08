@@ -46,9 +46,8 @@ class SubscriptionServiceRtdnTest {
 
         service.applyGoogleRtnd(n);
 
-        // ✅ expectedPackageName() может быть вызван — это нормально
         verify(gp).expectedPackageName();
-        verify(gp, never()).verify(anyString(), anyString(), anyString(), anyBoolean());
+        verify(gp, never()).verify(anyString(), anyString(), anyBoolean());
 
         verify(persistence, never()).persistGoogleRtnd(
                 anyString(), anyBoolean(), anyString(),
@@ -87,7 +86,7 @@ class SubscriptionServiceRtdnTest {
         when(persistence.existsGoogleByToken("token-1")).thenReturn(true);
 
         var expiry = Instant.parse("2026-01-10T00:00:00Z");
-        when(gp.verify(eq(PKG), eq("fintrack_pro_month"), eq("token-1"), eq(true)))
+        when(gp.verify(eq("fintrack_pro_month"), eq("token-1"), eq(true)))
                 .thenReturn(new GooglePlayService.GoogleSnapshot(
                         "fintrack_pro_month",
                         "token-1",
@@ -173,11 +172,17 @@ class SubscriptionServiceRtdnTest {
         when(sn.notificationType()).thenReturn(1);
 
         when(persistence.existsGoogleByToken("token-err")).thenReturn(true);
-        when(gp.verify(anyString(), anyString(), anyString(), anyBoolean()))
+        when(gp.verify(anyString(), anyString(), anyBoolean()))
                 .thenThrow(new RuntimeException("boom"));
 
         service.applyGoogleRtnd(n);
 
-        verify(persistence, never()).persistGoogleRtnd(any(), anyBoolean(), any(), any(), any(), any(), any(), any(), anyBoolean(), any(), any());
+        verify(persistence, never()).persistGoogleRtnd(
+                any(), anyBoolean(), any(),
+                any(), any(), any(),
+                any(), any(),
+                anyBoolean(), any(),
+                any()
+        );
     }
 }

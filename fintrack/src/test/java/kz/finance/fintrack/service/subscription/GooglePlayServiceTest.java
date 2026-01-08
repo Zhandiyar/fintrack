@@ -40,7 +40,8 @@ class GooglePlayServiceTest {
                         "paymentState", 1
                 ));
 
-        var snap = service.verify("kz.finance.fintrack", "fintrack_pro_month", "token123", false);
+        var snap = service.verify("fintrack_pro_month", "token123", false);
+
         assertThat(snap.getProductId()).isEqualTo("fintrack_pro_month");
         assertThat(snap.getPurchaseToken()).isEqualTo("token123");
         assertThat(snap.getExpiry()).isNotNull();
@@ -50,15 +51,8 @@ class GooglePlayServiceTest {
     }
 
     @Test
-    void verify_invalidPackage_throws() {
-        assertThatThrownBy(() -> service.verify("wrong.pkg", "fintrack_pro_month", "t", false))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("packageName");
-    }
-
-    @Test
     void verify_unknownProduct_throws() {
-        assertThatThrownBy(() -> service.verify("kz.finance.fintrack", "unknown", "t", false))
+        assertThatThrownBy(() -> service.verify("unknown", "t", false))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("productId");
     }
@@ -68,7 +62,7 @@ class GooglePlayServiceTest {
         when(google.verifyPurchase(anyString(), anyString(), anyString()))
                 .thenReturn(Map.of("acknowledgementState", 1));
 
-        assertThatThrownBy(() -> service.verify("kz.finance.fintrack", "fintrack_pro_month", "t", false))
+        assertThatThrownBy(() -> service.verify("fintrack_pro_month", "t", false))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("expiryTimeMillis");
     }
@@ -83,9 +77,10 @@ class GooglePlayServiceTest {
 
         doNothing().when(google).acknowledge(anyString(), anyString(), anyString(), anyMap());
 
-        var snap = service.verify("kz.finance.fintrack", "fintrack_pro_month", "t", true);
+        var snap = service.verify("fintrack_pro_month", "t", true);
+
         verify(google).acknowledge(eq("kz.finance.fintrack"), eq("fintrack_pro_month"), eq("t"), anyMap());
-        assertThat(snap.getAcknowledgementState()).isIn(0, 1); // у тебя после ack выставляется 1, но если ack упадёт — останется 0
+        assertThat(snap.getAcknowledgementState()).isIn(0, 1); // если ack упадёт — останется 0
     }
 
     @Test
@@ -96,7 +91,7 @@ class GooglePlayServiceTest {
                         "acknowledgementState", 0
                 ));
 
-        service.verify("kz.finance.fintrack", "fintrack_pro_month", "t", false);
+        service.verify("fintrack_pro_month", "t", false);
 
         verify(google, never()).acknowledge(anyString(), anyString(), anyString(), anyMap());
     }
@@ -113,7 +108,7 @@ class GooglePlayServiceTest {
                         "acknowledgementState", 1
                 ));
 
-        var snap = service.verify("kz.finance.fintrack", "fintrack_pro_month", "t", false);
+        var snap = service.verify("fintrack_pro_month", "t", false);
 
         assertThat(snap.getStart()).isNotNull();
         assertThat(snap.getGraceUntil()).isNotNull();

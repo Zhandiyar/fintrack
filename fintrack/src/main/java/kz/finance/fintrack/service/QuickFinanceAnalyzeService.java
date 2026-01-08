@@ -90,14 +90,15 @@ public class QuickFinanceAnalyzeService {
 
         String advice = ADVICE.get(rnd.nextInt(ADVICE.size()));
 
-        String result = String.join("\n",
-                greeting,
-                balanceComment,
-                String.format("Доходы: %s %s | Расходы: %s %s",
+        // Форматируем markdown с жирным, заголовком и курсива
+        String result = String.join("\n\n",
+                "## " + greeting,
+                "**" + balanceComment + "**",
+                String.format("**Доходы:** %s %s | **Расходы:** %s %s",
                         income.setScale(2, RoundingMode.DOWN), symbol,
                         expense.setScale(2, RoundingMode.DOWN), symbol),
                 tip,
-                advice
+                "_" + advice + "_"
         );
 
         log.info("QuickAnalyze for user {}: {}", user.getId(), result);

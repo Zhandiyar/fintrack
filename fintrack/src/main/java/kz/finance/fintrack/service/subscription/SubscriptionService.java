@@ -32,13 +32,13 @@ public class SubscriptionService {
     private final SubscriptionPersistenceService persistence;
 
     // ===== GOOGLE (network outside TX) =====
-    public EntitlementResponse verifyGoogleAndSave(VerifyRequest req, @Nullable String idemKey) {
+    public EntitlementResponse verifyGoogleAndSave(GoogleVerifyRequest req, @Nullable String idemKey) {
         var user = userService.getCurrentUser();
 
         var cached = findIdemCached(user, SubscriptionProvider.GOOGLE, idemKey);
         if (cached != null) return cached;
 
-        var snap = gp.verify(req.packageName(), req.productId(), req.purchaseToken(), true);
+        var snap = gp.verify(req.productId(), req.purchaseToken(), true);
         var now = Instant.now(clock);
 
         var saved = persistence.persistGoogle(
@@ -135,7 +135,7 @@ public class SubscriptionService {
             return;
         }
         try {
-            var snap = gp.verify(n.packageName(), sn.subscriptionId(), token, true);
+            var snap = gp.verify(sn.subscriptionId(), token, true);
             boolean shouldRevoke = GoogleRtdnTypes.isRevokedOrRefunded(sn.notificationType());
 
             persistence.persistGoogleRtnd(

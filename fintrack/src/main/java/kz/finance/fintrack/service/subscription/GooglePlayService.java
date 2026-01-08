@@ -41,11 +41,14 @@ public class GooglePlayService {
     public String expectedPackageName() {
         return packageNameProp;
     }
-    /** Проверить подписку и вернуть «снимок» данных Google. */
-    public GoogleSnapshot verify(String packageName, String productId, String purchaseToken, boolean tryAcknowledge) {
-        validateInput(packageName, productId);
 
-        Map<String, Object> body = google.verifyPurchase(packageName, productId, purchaseToken);
+    /**
+     * Проверить подписку и вернуть «снимок» данных Google.
+     */
+    public GoogleSnapshot verify(String productId, String purchaseToken, boolean tryAcknowledge) {
+        validateInput(productId, purchaseToken);
+
+        Map<String, Object> body = google.verifyPurchase(packageNameProp, productId, purchaseToken);
         if (body == null) throw new IllegalStateException("Empty response from Google");
 
         long expiryMs = parseLong(body.get("expiryTimeMillis"), -1L);
@@ -68,7 +71,7 @@ public class GooglePlayService {
         // acknowledge при необходимости
         if (tryAcknowledge && acknowledgementState == 0) {
             try {
-                google.acknowledge(packageName, productId, purchaseToken, Map.of());
+                google.acknowledge(packageNameProp, productId, purchaseToken, Map.of());
                 acknowledgementState = 1;
             } catch (Exception ackErr) {
                 log.warn("Acknowledge failed (will retry later): {}", ackErr.getMessage());
@@ -81,9 +84,9 @@ public class GooglePlayService {
         );
     }
 
-    private void validateInput(String packageName, String productId) {
-        if (!Objects.equals(packageNameProp, packageName)) {
-            throw new IllegalArgumentException("Invalid packageName");
+    private void validateInput(String productId, String purchaseToken) {
+        if (purchaseToken == null || purchaseToken.isBlank()) {
+            throw new IllegalArgumentException("Empty purchaseToken");
         }
         if (!allowedProducts.contains(productId)) {
             throw new IllegalArgumentException("Unknown productId");
@@ -91,16 +94,26 @@ public class GooglePlayService {
     }
 
     private static long parseLong(Object v, long def) {
-        try { return v == null ? def : Long.parseLong(String.valueOf(v)); }
-        catch (Exception e) { return def; }
-    }
-    private static Integer parseIntObj(Object v) {
-        try { return v == null ? null : Integer.valueOf(String.valueOf(v)); }
-        catch (Exception e) { return null; }
+        try {
+            return v == null ? def : Long.parseLong(String.valueOf(v));
+        } catch (Exception e) {
+            return def;
+        }
     }
 
-    /** Универсальный «снимок» Google-данных. */
-    @Getter @AllArgsConstructor
+    private static Integer parseIntObj(Object v) {
+        try {
+            return v == null ? null : Integer.valueOf(String.valueOf(v));
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Универсальный «снимок» Google-данных.
+     */
+    @Getter
+    @AllArgsConstructor
     public static class GoogleSnapshot {
         private final String productId;
         private final String purchaseToken;

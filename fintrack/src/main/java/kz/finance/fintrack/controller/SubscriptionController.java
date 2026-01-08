@@ -5,7 +5,7 @@ import kz.finance.fintrack.dto.ApiResponse;
 import kz.finance.fintrack.dto.subscription.AppleNotificationRequest;
 import kz.finance.fintrack.dto.subscription.AppleVerifyRequest;
 import kz.finance.fintrack.dto.subscription.EntitlementResponse;
-import kz.finance.fintrack.dto.subscription.VerifyRequest;
+import kz.finance.fintrack.dto.subscription.GoogleVerifyRequest;
 import kz.finance.fintrack.service.subscription.AppleServerNotificationService;
 import kz.finance.fintrack.service.subscription.GoogleWebhookParser;
 import kz.finance.fintrack.service.subscription.SubscriptionService;
@@ -36,7 +36,7 @@ public class SubscriptionController {
      */
     @PostMapping("/google/verify")
     public ResponseEntity<EntitlementResponse> verify(
-            @Valid @RequestBody VerifyRequest req,
+            @Valid @RequestBody GoogleVerifyRequest req,
             @RequestHeader(value = "X-Idempotency-Key", required = false) String idemKey
     ) {
         return ResponseEntity.ok(subscriptionService.verifyGoogleAndSave(req, idemKey));

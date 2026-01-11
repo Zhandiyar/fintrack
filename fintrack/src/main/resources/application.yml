@@ -40,6 +40,7 @@ apple:
   preferred-environment: ${APPLE_PREFERRED_ENVIRONMENT:PRODUCTION}
   enable-online-checks: ${APPLE_ENABLE_ONLINE_CHECKS:true}
   allowed-products: ${APPLE_ALLOWED_PRODUCTS}
+  shared-secret: ${APPLE_SHARED_SECRET:}
 
   private-key-p8: ${APPLE_PRIVATE_KEY_P8_PATH}
   root-certs:

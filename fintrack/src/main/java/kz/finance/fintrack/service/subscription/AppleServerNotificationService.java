@@ -8,7 +8,6 @@ import com.apple.itunes.storekit.model.JWSTransactionDecodedPayload;
 import com.apple.itunes.storekit.model.ResponseBodyV2DecodedPayload;
 import com.apple.itunes.storekit.verification.SignedDataVerifier;
 import com.apple.itunes.storekit.verification.VerificationException;
-import jakarta.annotation.PostConstruct;
 import kz.finance.fintrack.config.AppleStoreKitSk2Config.AppleSk2Clients;
 import kz.finance.fintrack.dto.subscription.EntitlementStatus;
 import kz.finance.fintrack.model.*;
@@ -16,17 +15,13 @@ import kz.finance.fintrack.repository.SubscriptionRepository;
 import kz.finance.fintrack.utils.AppleTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -37,18 +32,7 @@ public class AppleServerNotificationService {
     private final SubscriptionRepository subRepo;
     private final WebhookDedupService dedup;
 
-    @Value("${apple.allowed-products:fintrack_pro_month,fintrack_pro_year}")
-    private String allowedProductsCsv;
-
-    private Set<String> allowedProducts;
-
-    @PostConstruct
-    void init() {
-        allowedProducts = Arrays.stream(allowedProductsCsv.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isBlank())
-                .collect(Collectors.toUnmodifiableSet());
-    }
+    private final AppleProductPolicy productPolicy;
 
     /**
      * Apple Server Notifications v2: signedPayload.
@@ -85,7 +69,7 @@ public class AppleServerNotificationService {
         }
 
         String productId = normalize(tx.getProductId());
-        if (productId == null || !allowedProducts.contains(productId)) {
+        if (!productPolicy.isAllowed(productId)) {
             log.warn("Apple notification for unknown productId={} type={} uuid={}",
                     productId, payload.getNotificationType(), payload.getNotificationUUID());
             return;
@@ -143,10 +127,9 @@ public class AppleServerNotificationService {
         updater.accept(sub);
 
         try {
-            subRepo.saveAndFlush(sub); // ✅ обязательно flush, иначе unique выстрелит "позже"
+            subRepo.saveAndFlush(sub);
             return;
         } catch (DataIntegrityViolationException race) {
-            // Гонка: кто-то вставил между find и save
             SubscriptionEntity existing = findAppleSubscription(origTx, txId);
             updater.accept(existing);
             subRepo.saveAndFlush(existing);
@@ -155,12 +138,6 @@ public class AppleServerNotificationService {
 
     // ------------------ monotonic merge ------------------
 
-    /**
-     * Монотонное обновление фактов из Transaction:
-     * - purchaseDate: earliest
-     * - expiryDate: max
-     * - revoked: sticky true
-     */
     private void mergeTxFacts(SubscriptionEntity sub,
                               JWSTransactionDecodedPayload tx,
                               Environment env,
@@ -176,8 +153,6 @@ public class AppleServerNotificationService {
         if (transactionId != null) sub.setAppleTransactionId(transactionId);
 
         sub.setProductId(normalize(tx.getProductId()));
-
-        // legacy / совместимость
         sub.setPurchaseToken(originalTxId != null ? originalTxId : transactionId);
 
         Instant purchaseAt = AppleTime.msToInstant(tx.getPurchaseDate());
@@ -205,11 +180,6 @@ public class AppleServerNotificationService {
         sub.setLastVerifiedAt(now);
     }
 
-    /**
-     * Монотонное обновление фактов из Renewal:
-     * - graceUntil: max
-     * - autoRenewing: обновляем, но не даём включиться при revoked
-     */
     private void mergeRenewalFacts(SubscriptionEntity sub, JWSRenewalInfoDecodedPayload renewal) {
         if (renewal == null) return;
 
@@ -299,7 +269,6 @@ public class AppleServerNotificationService {
             var byTx = subRepo.findByProviderAndAppleTransactionId(SubscriptionProvider.APPLE, txId);
             if (byTx.isPresent()) return byTx.get();
         }
-        // legacy fallback purchaseToken
         if (origTx != null) {
             var byToken = subRepo.findByProviderAndPurchaseToken(SubscriptionProvider.APPLE, origTx);
             if (byToken.isPresent()) return byToken.get();

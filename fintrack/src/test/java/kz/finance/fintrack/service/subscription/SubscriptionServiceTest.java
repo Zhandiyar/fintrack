@@ -1,6 +1,7 @@
 package kz.finance.fintrack.service.subscription;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import kz.finance.fintrack.dto.subscription.EntitlementResponse;
 import kz.finance.fintrack.dto.subscription.EntitlementStatus;
 import kz.finance.fintrack.dto.subscription.GoogleVerifyRequest;
@@ -33,7 +34,9 @@ class SubscriptionServiceTest {
         var persistence = mock(SubscriptionPersistenceService.class);
 
         var mapper = new ObjectMapper();
-        var service = new SubscriptionService(idemRepo, FIXED_CLOCK, gp, apple, userService, mapper, persistence);
+        mapper.registerModule(new JavaTimeModule());
+        var receiptVerifier = mock(AppleReceiptVerifier.class);
+        var service = new SubscriptionService(idemRepo, FIXED_CLOCK, gp, apple, receiptVerifier, userService, mapper, persistence);
 
         var user = new UserEntity();
         user.setId(1L);
@@ -64,7 +67,9 @@ class SubscriptionServiceTest {
         var persistence = mock(SubscriptionPersistenceService.class);
 
         var mapper = new ObjectMapper();
-        var service = new SubscriptionService(idemRepo, FIXED_CLOCK, gp, apple, userService, mapper, persistence);
+        mapper.registerModule(new JavaTimeModule());
+        var receiptVerifier = mock(AppleReceiptVerifier.class);
+        var service = new SubscriptionService(idemRepo, FIXED_CLOCK, gp, apple, receiptVerifier, userService, mapper, persistence);
 
         var user = new UserEntity();
         user.setId(1L);
@@ -112,7 +117,9 @@ class SubscriptionServiceTest {
         var persistence = mock(SubscriptionPersistenceService.class);
 
         var mapper = new ObjectMapper();
-        var service = new SubscriptionService(idemRepo, FIXED_CLOCK, gp, apple, userService, mapper, persistence);
+        mapper.registerModule(new JavaTimeModule());
+        var receiptVerifier = mock(AppleReceiptVerifier.class);
+        var service = new SubscriptionService(idemRepo, FIXED_CLOCK, gp, apple, receiptVerifier, userService, mapper, persistence);
 
         var user = new UserEntity();
         user.setId(1L);
@@ -161,7 +168,9 @@ class SubscriptionServiceTest {
         var persistence = mock(SubscriptionPersistenceService.class);
 
         var mapper = new ObjectMapper();
-        var service = new SubscriptionService(idemRepo, FIXED_CLOCK, gp, apple, userService, mapper, persistence);
+        mapper.registerModule(new JavaTimeModule());
+        var receiptVerifier = mock(AppleReceiptVerifier.class);
+        var service = new SubscriptionService(idemRepo, FIXED_CLOCK, gp, apple, receiptVerifier, userService, mapper, persistence);
 
         var user = new UserEntity();
         user.setId(1L);

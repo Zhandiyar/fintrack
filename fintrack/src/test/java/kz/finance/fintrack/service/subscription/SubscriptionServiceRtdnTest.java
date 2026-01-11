@@ -1,6 +1,7 @@
 package kz.finance.fintrack.service.subscription;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import kz.finance.fintrack.repository.IapIdempotencyRepository;
 import kz.finance.fintrack.service.UserService;
 import org.junit.jupiter.api.Test;
@@ -19,6 +20,12 @@ class SubscriptionServiceRtdnTest {
 
     private static final String PKG = "kz.finance.fintrack";
 
+    private static ObjectMapper createObjectMapper() {
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.registerModule(new JavaTimeModule());
+        return mapper;
+    }
+
     @Test
     void applyGoogleRtnd_unknownToken_doesNothing() {
         var idem = mock(IapIdempotencyRepository.class);
@@ -29,8 +36,9 @@ class SubscriptionServiceRtdnTest {
 
         when(gp.expectedPackageName()).thenReturn(PKG);
 
+        var receiptVerifier = mock(AppleReceiptVerifier.class);
         var service = new SubscriptionService(
-                idem, FIXED_CLOCK, gp, apple, userService, new ObjectMapper(), persistence
+                idem, FIXED_CLOCK, gp, apple, receiptVerifier, userService, createObjectMapper(), persistence
         );
 
         var n = mock(GoogleWebhookParser.DeveloperNotification.class);
@@ -70,8 +78,9 @@ class SubscriptionServiceRtdnTest {
 
         when(gp.expectedPackageName()).thenReturn(PKG);
 
+        var receiptVerifier = mock(AppleReceiptVerifier.class);
         var service = new SubscriptionService(
-                idem, FIXED_CLOCK, gp, apple, userService, new ObjectMapper(), persistence
+                idem, FIXED_CLOCK, gp, apple, receiptVerifier, userService, createObjectMapper(), persistence
         );
 
         var n = mock(GoogleWebhookParser.DeveloperNotification.class);
@@ -128,8 +137,9 @@ class SubscriptionServiceRtdnTest {
                 FIXED_CLOCK,
                 gp,
                 mock(AppleSk2Verifier.class),
+                mock(AppleReceiptVerifier.class),
                 mock(UserService.class),
-                new ObjectMapper(),
+                createObjectMapper(),
                 persistence
         );
 
@@ -157,8 +167,9 @@ class SubscriptionServiceRtdnTest {
                 FIXED_CLOCK,
                 gp,
                 mock(AppleSk2Verifier.class),
+                mock(AppleReceiptVerifier.class),
                 mock(UserService.class),
-                new ObjectMapper(),
+                createObjectMapper(),
                 persistence
         );
 

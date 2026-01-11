@@ -85,5 +85,6 @@ public class SubscriptionEntity {
     void prePersist() {
         if (status == null) status = SubscriptionStatus.NONE;
         if (purchaseState == null) purchaseState = SubscriptionState.UNKNOWN;
+        if (lastVerifiedAt == null) lastVerifiedAt = Instant.now();
     }
 }

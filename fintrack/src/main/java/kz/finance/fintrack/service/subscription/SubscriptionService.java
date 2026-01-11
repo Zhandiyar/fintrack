@@ -26,6 +26,7 @@ public class SubscriptionService {
 
     private final GooglePlayService gp;
     private final AppleSk2Verifier appleSk2;
+    private final AppleReceiptVerifier appleReceiptVerifier;
     private final UserService userService;
     private final ObjectMapper objectMapper;
 
@@ -69,15 +70,25 @@ public class SubscriptionService {
         var cached = findIdemCached(user, SubscriptionProvider.APPLE, idemKey);
         if (cached != null) return cached;
 
-        var snap = appleSk2.verifyByTransactionId(req.transactionId(), req.productId());
+        AppleSk2Snapshot snap;
+        if (req.hasTransactionId()) {
+            log.debug("Verifying Apple subscription via StoreKit2 transactionId for productId={}", req.productId());
+            snap = appleSk2.verifyByTransactionId(req.transactionId(), req.productId());
+        } else if (req.hasReceipt()) {
+            log.debug("Verifying Apple subscription via receipt (fallback) for productId={}", req.productId());
+            snap = appleReceiptVerifier.verifyByReceipt(req.appReceipt(), req.productId());
+        } else {
+            // Сюда в идеале не должны попадать из-за BeanValidation, но на всякий случай:
+            throw new FinTrackException(400, "Provide transactionId or appReceipt");
+        }
+
         var now = Instant.now(clock);
 
         String origTx = normalize(snap.originalTransactionId());
         String txId   = normalize(snap.transactionId());
 
-        // важно: чтобы был хотя бы один стабильный ключ
         if (origTx == null && txId == null) {
-            throw new FinTrackException(400, "Apple transactionId/originalTransactionId is empty");
+            throw new FinTrackException(400, "Apple transaction identifiers are empty");
         }
 
         var saved = persistence.persistApple(

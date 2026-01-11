@@ -10,40 +10,25 @@ import com.apple.itunes.storekit.model.SubscriptionGroupIdentifierItem;
 import com.apple.itunes.storekit.model.TransactionInfoResponse;
 import com.apple.itunes.storekit.verification.SignedDataVerifier;
 import com.apple.itunes.storekit.verification.VerificationException;
-import jakarta.annotation.PostConstruct;
 import kz.finance.fintrack.config.AppleStoreKitSk2Config.AppleSk2Clients;
 import kz.finance.fintrack.dto.subscription.AppleSk2Snapshot;
 import kz.finance.fintrack.dto.subscription.EntitlementStatus;
 import kz.finance.fintrack.utils.AppleTime;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
-import java.util.*;
-import java.util.stream.Collectors;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
 public class AppleSk2Verifier {
 
     private final AppleSk2Clients sk2;
-
-    @Value("${apple.allowed-products:fintrack_pro_month,fintrack_pro_year}")
-    private String allowedProductsCsv;
-
-    private Set<String> allowedProducts;
-
-    @PostConstruct
-    void init() {
-        allowedProducts = Arrays.stream(allowedProductsCsv.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isBlank())
-                .collect(Collectors.toUnmodifiableSet());
-    }
+    private final AppleProductPolicy productPolicy;
 
     public AppleSk2Snapshot verifyByTransactionId(String transactionId, String expectedProductId) {
-        validateProduct(expectedProductId);
+        productPolicy.requireAllowed(expectedProductId);
 
         TxEnv txEnv = getTransactionInfoWithFallback(transactionId);
 
@@ -108,11 +93,6 @@ public class AppleSk2Verifier {
         }
     }
 
-    /**
-     * Вытаскиваем renewal факты из getAllSubscriptionStatuses:
-     * - выбираем "best" last transaction по max expiresDate
-     * - без повторного decode одного и того же signedTransactionInfo
-     */
     private RenewalFacts fetchRenewalFacts(Environment env, SignedDataVerifier verifier, String transactionId, String expectedProductId) {
         try {
             StatusResponse resp = sk2.client(env).getAllSubscriptionStatuses(transactionId, null);
@@ -129,7 +109,6 @@ public class AppleSk2Verifier {
                     String signedTx = lt.getSignedTransactionInfo();
                     if (signedTx == null || signedTx.isBlank()) continue;
 
-                    // decode ровно один раз
                     JWSTransactionDecodedPayload tx;
                     try {
                         tx = verifier.verifyAndDecodeTransaction(signedTx);
@@ -186,12 +165,6 @@ public class AppleSk2Verifier {
         }
     }
 
-    private void validateProduct(String productId) {
-        if (!allowedProducts.contains(productId)) {
-            throw new IllegalArgumentException("Unknown productId");
-        }
-    }
-
     private static boolean isNotFound(Exception e) {
         if (e instanceof APIException api) return api.getHttpStatusCode() == 404;
         String m = e.getMessage();
@@ -220,7 +193,6 @@ public class AppleSk2Verifier {
             if (v instanceof Boolean b) return b;
             if (v instanceof Number n) return n.intValue() == 1;
 
-            // Enum (например AutoRenewStatus.ON/OFF)
             if (v instanceof Enum<?> e) {
                 String name = e.name().trim().toLowerCase();
                 if ("on".equals(name) || "true".equals(name) || "1".equals(name)) return true;
@@ -245,7 +217,6 @@ public class AppleSk2Verifier {
             return null;
         }
     }
-
 
     private record TxEnv(Environment env, TransactionInfoResponse txInfo) {}
 

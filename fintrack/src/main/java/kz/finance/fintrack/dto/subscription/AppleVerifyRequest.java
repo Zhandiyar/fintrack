@@ -18,6 +18,7 @@ public record AppleVerifyRequest(
     public boolean hasTransactionId() {
         return notBlank(transactionId);
     }
+    public boolean hasSignedTx()      { return notBlank(signedTransactionInfo); }
 
     public boolean hasReceipt() {
         return notBlank(appReceipt);

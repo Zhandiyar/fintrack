@@ -64,6 +64,96 @@ public class AppleSk2Verifier {
         );
     }
 
+    public AppleSk2Snapshot verifyBySignedTransaction(String signedTransactionInfo, String expectedProductId) {
+        productPolicy.requireAllowed(expectedProductId);
+
+        String signedTx = requireText(signedTransactionInfo, "Apple signedTransactionInfo is empty");
+
+        // 1) Пытаемся провалидировать JWS в preferred env, если не получилось — в другом env.
+        Environment first = sk2.preferred();
+        Environment second = sk2.other(first);
+
+        SignedTxEnv decoded = decodeSignedTxWithEnvFallback(signedTx, first, second);
+        Environment env = decoded.env();
+        SignedDataVerifier verifier = decoded.verifier();
+        JWSTransactionDecodedPayload tx = decoded.tx();
+
+        // 2) Проверяем productId
+        if (!Objects.equals(tx.getProductId(), expectedProductId)) {
+            throw new IllegalArgumentException("Apple productId mismatch");
+        }
+
+        // 3) Маппим даты
+        Instant purchasedAt = AppleTime.msToInstant(tx.getPurchaseDate());
+        Instant expiresAt = AppleTime.msToInstant(tx.getExpiresDate());
+
+        Instant revocationDate = AppleTime.msToInstant(tx.getRevocationDate());
+        boolean revoked = revocationDate != null;
+
+        // 4) Renewal facts — берем по "anchor tx id" (лучше originalTransactionId, иначе transactionId)
+        String anchorTxId = firstNonBlank(tx.getOriginalTransactionId(), tx.getTransactionId());
+        RenewalFacts renewal = (anchorTxId != null)
+                ? fetchRenewalFacts(env, verifier, anchorTxId, expectedProductId)
+                : RenewalFacts.empty();
+
+        return new AppleSk2Snapshot(
+                env,
+                expectedProductId,
+                tx.getTransactionId(),
+                tx.getOriginalTransactionId(),
+                purchasedAt,
+                expiresAt,
+                renewal.autoRenew(),
+                renewal.graceUntil(),
+                renewal.billingRetry(),
+                revoked,
+                revocationDate
+        );
+    }
+
+// ---------------- helpers for verifyBySignedTransaction ----------------
+
+    private SignedTxEnv decodeSignedTxWithEnvFallback(String signedTx, Environment first, Environment second) {
+        // try #1 (preferred)
+        try {
+            SignedDataVerifier v1 = sk2.verifier(first);
+            JWSTransactionDecodedPayload tx1 = decodeTx(v1, signedTx);
+            return new SignedTxEnv(first, v1, tx1);
+        } catch (Exception e1) {
+            // try #2 (other)
+            try {
+                SignedDataVerifier v2 = sk2.verifier(second);
+                JWSTransactionDecodedPayload tx2 = decodeTx(v2, signedTx);
+                return new SignedTxEnv(second, v2, tx2);
+            } catch (Exception e2) {
+                // обе проверки не прошли — значит подпись/цепочка невалидна (или неверные корни)
+                throw new IllegalArgumentException(
+                        "Apple signedTransactionInfo verification failed in both envs: " + safeMsg(e2),
+                        e2
+                );
+            }
+        }
+    }
+
+    private static String requireText(String s, String message) {
+        if (s == null || s.isBlank()) throw new IllegalArgumentException(message);
+        return s.trim();
+    }
+
+    private static String firstNonBlank(String a, String b) {
+        String x = normalize(a);
+        if (x != null) return x;
+        return normalize(b);
+    }
+
+    private static String normalize(String s) {
+        if (s == null) return null;
+        String t = s.trim();
+        return t.isEmpty() ? null : t;
+    }
+
+    private record SignedTxEnv(Environment env, SignedDataVerifier verifier, JWSTransactionDecodedPayload tx) {}
+
     public EntitlementStatus toEntitlement(AppleSk2Snapshot s, Instant now) {
         if (s.revoked()) return EntitlementStatus.REVOKED;
         if (s.expiresAt() == null) return EntitlementStatus.NONE;

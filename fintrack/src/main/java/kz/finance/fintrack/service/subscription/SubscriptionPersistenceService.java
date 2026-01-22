@@ -17,6 +17,55 @@ import java.util.List;
 public class SubscriptionPersistenceService {
 
     private final SubscriptionRepository subRepo;
+    @Transactional
+    public SubscriptionEntity persistAppleAndDeactivateOthers(
+            UserEntity user,
+            String productId,
+            String txId,
+            String origTx,
+            Instant purchasedAt,
+            Instant expiresAt,
+            Instant graceUntil,
+            boolean autoRenew,
+            com.apple.itunes.storekit.model.Environment environment,
+            boolean revoked,
+            Instant revocationDate,
+            Instant now
+    ) {
+        var saved = persistApple(
+                user, productId, txId, origTx,
+                purchasedAt, expiresAt, graceUntil,
+                autoRenew, environment, revoked, revocationDate, now
+        );
+
+        deactivateOtherActiveSubscriptions(user, SubscriptionProvider.APPLE, saved.getPurchaseToken(), now);
+        return saved;
+    }
+
+    @Transactional
+    public SubscriptionEntity persistGoogleAndDeactivateOthers(
+            UserEntity user,
+            String productId,
+            String purchaseToken,
+            Instant start,
+            Instant expiry,
+            Instant graceUntil,
+            Integer paymentState,
+            Integer cancelReason,
+            boolean autoRenewing,
+            Integer ackState,
+            Instant now
+    ) {
+        var saved = persistGoogle(
+                user, productId, purchaseToken,
+                start, expiry, graceUntil,
+                paymentState, cancelReason,
+                autoRenewing, ackState, now
+        );
+
+        deactivateOtherActiveSubscriptions(user, SubscriptionProvider.GOOGLE, saved.getPurchaseToken(), now);
+        return saved;
+    }
 
     // ===== GOOGLE (TX) =====
     @Transactional
@@ -363,5 +412,16 @@ public class SubscriptionPersistenceService {
     private static String requireNonBlank(String s, String message) {
         if (s == null || s.isBlank()) throw new FinTrackException(400, message);
         return s;
+    }
+
+    @Transactional
+    public void deactivateOtherActiveSubscriptions(
+            UserEntity user,
+            SubscriptionProvider provider,
+            String keepPurchaseToken,
+            Instant now
+    ) { if (keepPurchaseToken == null || keepPurchaseToken.isBlank()) return;
+
+        subRepo.deactivateOthers(user, provider, keepPurchaseToken, SubscriptionStatus.EXPIRED, now);
     }
 }

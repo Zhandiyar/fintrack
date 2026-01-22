@@ -42,7 +42,7 @@ public class SubscriptionService {
         var snap = gp.verify(req.productId(), req.purchaseToken(), true);
         var now = Instant.now(clock);
 
-        var saved = persistence.persistGoogle(
+        var saved = persistence.persistGoogleAndDeactivateOthers(
                 user,
                 snap.getProductId(),
                 snap.getPurchaseToken(),
@@ -58,9 +58,14 @@ public class SubscriptionService {
 
         var ent = EntitlementResolver.resolve(saved.isRevoked(), saved.getExpiryDate(), saved.getGraceUntil(), now);
         var response = new EntitlementResponse(ent, saved.getExpiryDate(), saved.getProductId(), saved.isAutoRenewing());
-
         saveIdem(user, SubscriptionProvider.GOOGLE, idemKey, response);
-        return response;
+        log.info(
+                "GOOGLE_VERIFY user={} productId={} purchaseToken={} expires={}",
+                user.getId(),
+                snap.getProductId(),
+                snap.getPurchaseToken(),
+                snap.getExpiry()
+        ); return response;
     }
 
     // ===== APPLE (network outside TX) =====
@@ -74,12 +79,17 @@ public class SubscriptionService {
         if (req.hasTransactionId()) {
             log.debug("Verifying Apple subscription via StoreKit2 transactionId for productId={}", req.productId());
             snap = appleSk2.verifyByTransactionId(req.transactionId(), req.productId());
+        } else if (req.hasSignedTx()) {
+            snap = appleSk2.verifyBySignedTransaction(req.signedTransactionInfo(), req.productId());
         } else if (req.hasReceipt()) {
             log.debug("Verifying Apple subscription via receipt (fallback) for productId={}", req.productId());
             snap = appleReceiptVerifier.verifyByReceipt(req.appReceipt(), req.productId());
         } else {
             // Сюда в идеале не должны попадать из-за BeanValidation, но на всякий случай:
             throw new FinTrackException(400, "Provide transactionId or appReceipt");
+        }
+        if (snap.expiresAt() == null) {
+            throw new FinTrackException(400, "Not a subscription transaction (missing expiresAt)");
         }
 
         var now = Instant.now(clock);
@@ -91,7 +101,7 @@ public class SubscriptionService {
             throw new FinTrackException(400, "Apple transaction identifiers are empty");
         }
 
-        var saved = persistence.persistApple(
+        var saved = persistence.persistAppleAndDeactivateOthers(
                 user,
                 snap.productId(),
                 txId,
@@ -110,6 +120,15 @@ public class SubscriptionService {
         var response = new EntitlementResponse(ent, saved.getExpiryDate(), saved.getProductId(), saved.isAutoRenewing());
 
         saveIdem(user, SubscriptionProvider.APPLE, idemKey, response);
+        log.info(
+                "APPLE_VERIFY user={} product={} tx={} origTx={} env={} expires={}",
+                user.getId(),
+                snap.productId(),
+                snap.transactionId(),
+                snap.originalTransactionId(),
+                snap.environment(),
+                snap.expiresAt()
+        );
         return response;
     }
 

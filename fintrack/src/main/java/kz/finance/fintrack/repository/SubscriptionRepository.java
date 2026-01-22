@@ -2,9 +2,13 @@ package kz.finance.fintrack.repository;
 
 import kz.finance.fintrack.model.SubscriptionEntity;
 import kz.finance.fintrack.model.SubscriptionProvider;
+import kz.finance.fintrack.model.SubscriptionStatus;
 import kz.finance.fintrack.model.UserEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,4 +21,23 @@ public interface SubscriptionRepository extends JpaRepository<SubscriptionEntity
     Optional<SubscriptionEntity> findByProviderAndAppleTransactionId(SubscriptionProvider provider, String appleTransactionId);
 
     List<SubscriptionEntity> findTop20ByUserOrderByExpiryDateDesc(UserEntity user);
+
+    @Modifying
+    @Query("""
+    update SubscriptionEntity s
+    set s.active = false,
+        s.status = :status,
+        s.lastVerifiedAt = :now
+    where s.user = :user
+      and s.provider = :provider
+      and s.active = true
+      and s.purchaseToken <> :keepPurchaseToken
+""")
+    int deactivateOthers(
+            UserEntity user,
+            SubscriptionProvider provider,
+            String keepPurchaseToken,
+            SubscriptionStatus status,
+            Instant now
+    );
 }

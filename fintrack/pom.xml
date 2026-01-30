@@ -142,7 +142,7 @@
         <dependency>
             <groupId>com.apple.itunes.storekit</groupId>
             <artifactId>app-store-server-library</artifactId>
-            <version>4.0.0</version>
+            <version>3.0.0</version>
         </dependency>
         <!-- Mockito JUnit5 extension -->
         <dependency>

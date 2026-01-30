@@ -5,6 +5,7 @@ import kz.finance.fintrack.exception.FinTrackException;
 import kz.finance.fintrack.model.*;
 import kz.finance.fintrack.repository.SubscriptionRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +15,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class SubscriptionPersistenceService {
 
     private final SubscriptionRepository subRepo;
@@ -38,7 +40,13 @@ public class SubscriptionPersistenceService {
                 autoRenew, environment, revoked, revocationDate, now
         );
 
-        deactivateOtherActiveSubscriptions(user, SubscriptionProvider.APPLE, saved.getPurchaseToken(), now);
+        deactivateOtherActiveSubscriptions(
+                user, SubscriptionProvider.APPLE, 
+                saved.getPurchaseToken(), 
+                saved.getProductId(), 
+                saved.getAppleTransactionId(), 
+                now
+        );
         return saved;
     }
 
@@ -63,7 +71,13 @@ public class SubscriptionPersistenceService {
                 autoRenewing, ackState, now
         );
 
-        deactivateOtherActiveSubscriptions(user, SubscriptionProvider.GOOGLE, saved.getPurchaseToken(), now);
+        deactivateOtherActiveSubscriptions(
+                user, SubscriptionProvider.GOOGLE, 
+                saved.getPurchaseToken(), 
+                null, // productId не используется для Google
+                null, // transactionId не используется для Google
+                now
+        );
         return saved;
     }
 
@@ -173,7 +187,17 @@ public class SubscriptionPersistenceService {
             throw new FinTrackException(400, "Apple transactionId/originalTransactionId is empty");
         }
 
-        var sub = findAppleSubscription(o, t);
+        var sub = findAppleSubscription(o, t, productId);
+        
+        // Проверяем upgrade кейс: если найдена подписка с тем же originalTransactionId, но другим productId
+        boolean isUpgrade = sub.getId() != null && o != null && !productId.equals(sub.getProductId());
+        if (isUpgrade) {
+            log.info("Apple upgrade detected: originalTxId={}, old productId={}, new productId={}, updating existing subscription",
+                    o, sub.getProductId(), productId);
+            // При upgrade обновляем существующую запись (меняем productId с месячной на годовую)
+            // Это позволяет избежать конфликта уникального индекса на originalTransactionId
+            // и сохранить связь между подписками через originalTransactionId
+        }
 
         applyAppleSnapshot(
                 sub, user, productId, t, o,
@@ -184,8 +208,20 @@ public class SubscriptionPersistenceService {
         try {
             return subRepo.saveAndFlush(sub);
         } catch (DataIntegrityViolationException race) {
-            var fresh = refetchApple(o, t);
-            if (fresh == null) throw race;
+            // При race condition пытаемся найти существующую запись
+            // Учитываем productId для корректной обработки upgrade
+            var fresh = refetchApple(o, t, productId);
+            if (fresh == null) {
+                // Если не найдено - возможно это upgrade, ищем по originalTransactionId
+                if (o != null) {
+                    fresh = subRepo.findByProviderAndOriginalTransactionId(SubscriptionProvider.APPLE, o).orElse(null);
+                    if (fresh != null && !productId.equals(fresh.getProductId())) {
+                        log.info("Apple upgrade detected during race: originalTxId={}, old productId={}, new productId={}, updating existing subscription",
+                                o, fresh.getProductId(), productId);
+                    }
+                }
+                if (fresh == null) throw race;
+            }
 
             applyAppleSnapshot(
                     fresh, user, productId, t, o,
@@ -197,22 +233,48 @@ public class SubscriptionPersistenceService {
         }
     }
 
-    private SubscriptionEntity refetchApple(String origTx, String txId) {
+    private SubscriptionEntity refetchApple(String origTx, String txId, String productId) {
         SubscriptionEntity fresh = null;
 
-        if (origTx != null) {
-            fresh = subRepo.findByProviderAndOriginalTransactionId(SubscriptionProvider.APPLE, origTx).orElse(null);
-        }
-        if (fresh == null && txId != null) {
+        // 1. Сначала по transactionId (самый точный)
+        if (txId != null) {
             fresh = subRepo.findByProviderAndAppleTransactionId(SubscriptionProvider.APPLE, txId).orElse(null);
+            if (fresh != null) return fresh;
         }
-        if (fresh == null && origTx != null) {
+        
+        // 2. По originalTransactionId + productId (для upgrade)
+        if (origTx != null && productId != null) {
+            var byOrig = subRepo.findByProviderAndOriginalTransactionId(SubscriptionProvider.APPLE, origTx);
+            if (byOrig.isPresent()) {
+                var found = byOrig.get();
+                if (productId.equals(found.getProductId())) {
+                    return found;
+                }
+                // Если productId отличается - это upgrade, возвращаем существующую запись для обновления
+                // Это позволяет избежать конфликта уникального индекса на (provider, original_transaction_id)
+                return found;
+            }
+        }
+        
+        // 3. Fallback: по originalTransactionId без проверки productId
+        // ВАЖНО: только если productId не был передан (для обратной совместимости)
+        if (origTx != null && productId == null) {
+            fresh = subRepo.findByProviderAndOriginalTransactionId(SubscriptionProvider.APPLE, origTx).orElse(null);
+            if (fresh != null) return fresh;
+        }
+        
+        // 4. Fallback: по purchaseToken (только если productId не был передан)
+        if (origTx != null && productId == null) {
             fresh = subRepo.findByProviderAndPurchaseToken(SubscriptionProvider.APPLE, origTx).orElse(null);
+            if (fresh != null) return fresh;
         }
-        if (fresh == null && txId != null) {
+        if (txId != null && productId == null) {
             fresh = subRepo.findByProviderAndPurchaseToken(SubscriptionProvider.APPLE, txId).orElse(null);
+            if (fresh != null) return fresh;
         }
-        return fresh;
+        
+        // Если дошли сюда - это новая подписка (или upgrade, если productId был передан)
+        return null;
     }
 
     private void applyAppleSnapshot(
@@ -233,10 +295,12 @@ public class SubscriptionPersistenceService {
         assertOwnershipOrAssign(sub, user);
 
         sub.setProvider(SubscriptionProvider.APPLE);
-        sub.setProductId(productId);
-
+        
         // purchaseToken — legacy/stable key, берём origTx если есть
+        // При upgrade обновляем существующую запись, поэтому purchaseToken остается тем же (originalTransactionId)
         sub.setPurchaseToken(origTx != null ? origTx : txId);
+        
+        sub.setProductId(productId);
         sub.setAppleTransactionId(txId);
         sub.setOriginalTransactionId(origTx);
 
@@ -273,15 +337,50 @@ public class SubscriptionPersistenceService {
         sub.setPurchaseState(mapUiState(ent, sub.isAutoRenewing()));
     }
 
-    private SubscriptionEntity findAppleSubscription(String origTx, String txId) {
-        if (origTx != null) {
-            var byOrig = subRepo.findByProviderAndOriginalTransactionId(SubscriptionProvider.APPLE, origTx);
-            if (byOrig.isPresent()) return byOrig.get();
-        }
+    /**
+     * Находит существующую Apple подписку или создает новую.
+     * 
+     * Логика поиска для корректной обработки upgrade (месячная -> годовая):
+     * 1. Сначала ищем по transactionId (уникальный для каждой транзакции)
+     * 2. Затем ищем по originalTransactionId + productId (комбинация для upgrade)
+     * 3. Если не найдено - создаем новую запись
+     * 
+     * Это позволяет:
+     * - При upgrade создавать новую запись для годовой подписки
+     * - Сохранять историю обеих подписок (месячная и годовая)
+     */
+    private SubscriptionEntity findAppleSubscription(String origTx, String txId, String productId) {
+        // 1. Сначала ищем по transactionId (самый точный поиск)
         if (txId != null) {
             var byTx = subRepo.findByProviderAndAppleTransactionId(SubscriptionProvider.APPLE, txId);
             if (byTx.isPresent()) return byTx.get();
         }
+        
+        // 2. Ищем по originalTransactionId + productId (для upgrade кейса)
+        // При upgrade месячная и годовая имеют одинаковый originalTransactionId,
+        // но разные productId, поэтому нужно искать по комбинации
+        if (origTx != null && productId != null) {
+            var byOrig = subRepo.findByProviderAndOriginalTransactionId(SubscriptionProvider.APPLE, origTx);
+            if (byOrig.isPresent()) {
+                var found = byOrig.get();
+                // Если productId совпадает - это та же подписка (renewal)
+                if (productId.equals(found.getProductId())) {
+                    return found;
+                }
+                // Если productId отличается - это upgrade, возвращаем существующую запись для обновления
+                // Это позволяет избежать конфликта уникального индекса на (provider, original_transaction_id)
+                return found;
+            }
+        }
+        
+        // 3. Fallback: ищем по originalTransactionId без проверки productId
+        // (для обратной совместимости, если productId не передан)
+        if (origTx != null) {
+            var byOrig = subRepo.findByProviderAndOriginalTransactionId(SubscriptionProvider.APPLE, origTx);
+            if (byOrig.isPresent()) return byOrig.get();
+        }
+        
+        // 4. Fallback: ищем по purchaseToken
         if (origTx != null) {
             var byToken = subRepo.findByProviderAndPurchaseToken(SubscriptionProvider.APPLE, origTx);
             if (byToken.isPresent()) return byToken.get();
@@ -290,6 +389,7 @@ public class SubscriptionPersistenceService {
             var byToken = subRepo.findByProviderAndPurchaseToken(SubscriptionProvider.APPLE, txId);
             if (byToken.isPresent()) return byToken.get();
         }
+        
         return new SubscriptionEntity();
     }
 
@@ -372,6 +472,14 @@ public class SubscriptionPersistenceService {
         }
     }
 
+    /**
+     * Выбирает лучшую подписку из списка для пользователя.
+     * 
+     * Приоритеты:
+     * 1. Entitlement status (ENTITLED > IN_GRACE > EXPIRED > REVOKED > NONE)
+     * 2. При одинаковом статусе: более поздняя дата истечения
+     * 3. При одинаковой дате: приоритет годовой подписки над месячной (для upgrade кейса)
+     */
     private SubscriptionEntity pickBestSubscription(List<SubscriptionEntity> list, Instant now) {
         return list.stream()
                 .sorted((a, b) -> {
@@ -381,10 +489,37 @@ public class SubscriptionPersistenceService {
 
                     Instant da = coalesceDate(a);
                     Instant db = coalesceDate(b);
-                    return db.compareTo(da);
+                    int dateCompare = db.compareTo(da);
+                    if (dateCompare != 0) return dateCompare;
+                    
+                    // При одинаковой дате: приоритет годовой подписки над месячной
+                    // Это важно для upgrade кейса, когда обе подписки активны одновременно
+                    int productPriority = compareProductPriority(a.getProductId(), b.getProductId());
+                    if (productPriority != 0) return productPriority;
+                    
+                    return 0;
                 })
                 .findFirst()
                 .orElse(null);
+    }
+    
+    /**
+     * Сравнивает приоритет productId.
+     * Годовая подписка имеет больший приоритет, чем месячная.
+     * 
+     * @return отрицательное число, если a < b; положительное, если a > b; 0, если равны
+     */
+    private int compareProductPriority(String productIdA, String productIdB) {
+        if (productIdA == null && productIdB == null) return 0;
+        if (productIdA == null) return -1;
+        if (productIdB == null) return 1;
+        
+        boolean aIsYearly = productIdA.contains("_year");
+        boolean bIsYearly = productIdB.contains("_year");
+        
+        if (aIsYearly && !bIsYearly) return 1;  // годовая > месячная
+        if (!aIsYearly && bIsYearly) return -1; // месячная < годовая
+        return 0; // одинаковый тип
     }
 
     private int priority(EntitlementStatus s) {
@@ -414,14 +549,37 @@ public class SubscriptionPersistenceService {
         return s;
     }
 
+    /**
+     * Деактивирует другие активные подписки того же провайдера для пользователя.
+     * 
+     * Для Apple: использует productId + transactionId для корректной обработки upgrade.
+     * При upgrade месячная и годовая имеют одинаковый purchaseToken (originalTransactionId),
+     * поэтому нужно деактивировать по productId или transactionId.
+     * 
+     * Для Google: использует purchaseToken (уникальный для каждой подписки).
+     */
     @Transactional
     public void deactivateOtherActiveSubscriptions(
             UserEntity user,
             SubscriptionProvider provider,
             String keepPurchaseToken,
+            String keepProductId,
+            String keepTransactionId,
             Instant now
-    ) { if (keepPurchaseToken == null || keepPurchaseToken.isBlank()) return;
+    ) {
+        if (keepPurchaseToken == null || keepPurchaseToken.isBlank()) return;
 
-        subRepo.deactivateOthers(user, provider, keepPurchaseToken, SubscriptionStatus.EXPIRED, now);
+        if (provider == SubscriptionProvider.APPLE && keepProductId != null && keepTransactionId != null) {
+            // Для Apple: деактивируем по productId (для upgrade кейса)
+            // Деактивируем все подписки, где productId отличается от keepProductId
+            // Это важно для upgrade: при переходе месячная -> годовая деактивируем другие подписки
+            // (обновленная запись уже имеет новый productId, поэтому не будет деактивирована)
+            subRepo.deactivateOthersByProductAndTransaction(
+                    user, provider, keepProductId, keepTransactionId, SubscriptionStatus.EXPIRED, now
+            );
+        } else {
+            // Для Google или fallback: деактивируем по purchaseToken
+            subRepo.deactivateOthers(user, provider, keepPurchaseToken, SubscriptionStatus.EXPIRED, now);
+        }
     }
 }

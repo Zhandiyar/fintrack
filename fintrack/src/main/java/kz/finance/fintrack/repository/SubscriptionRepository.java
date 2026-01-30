@@ -40,4 +40,32 @@ public interface SubscriptionRepository extends JpaRepository<SubscriptionEntity
             SubscriptionStatus status,
             Instant now
     );
+
+    /**
+     * Деактивирует другие активные подписки того же провайдера для пользователя,
+     * исключая подписку с указанным productId и transactionId.
+     * Используется для корректной обработки upgrade (месячная -> годовая).
+     * 
+     * Логика: деактивируем все подписки, где productId отличается от keepProductId.
+     * Это важно для upgrade: при переходе месячная -> годовая нужно деактивировать месячную.
+     */
+    @Modifying
+    @Query("""
+    update SubscriptionEntity s
+    set s.active = false,
+        s.status = :status,
+        s.lastVerifiedAt = :now
+    where s.user = :user
+      and s.provider = :provider
+      and s.active = true
+      and s.productId <> :keepProductId
+""")
+    int deactivateOthersByProductAndTransaction(
+            UserEntity user,
+            SubscriptionProvider provider,
+            String keepProductId,
+            String keepTransactionId,
+            SubscriptionStatus status,
+            Instant now
+    );
 }

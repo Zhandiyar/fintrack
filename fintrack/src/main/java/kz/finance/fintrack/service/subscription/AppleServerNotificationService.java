@@ -20,7 +20,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
-import java.util.Objects;
 import java.util.function.Consumer;
 
 @Service
@@ -108,7 +107,8 @@ public class AppleServerNotificationService {
         };
 
         // upsert + retry на уникальном конфликте
-        saveAppleWithUniqRetry(originalTxId, transactionId, updater);
+        // Передаем productId для корректной обработки upgrade кейса
+        saveAppleWithUniqRetry(originalTxId, transactionId, productId, updater);
 
         log.info("Apple notification processed: env={} type={} subtype={} productId={} key={} uuid={}",
                 env,
@@ -122,8 +122,29 @@ public class AppleServerNotificationService {
 
     // ------------------ Upsert with uniq retry ------------------
 
-    private void saveAppleWithUniqRetry(String origTx, String txId, Consumer<SubscriptionEntity> updater) {
+    /**
+     * Сохраняет Apple подписку с обработкой race condition и upgrade кейса.
+     * 
+     * При upgrade (месячная -> годовая):
+     * - Обе подписки имеют одинаковый originalTransactionId
+     * - Но разные transactionId и productId
+     * - Обновляем существующую запись (меняем productId), чтобы избежать конфликта уникального индекса
+     */
+    private void saveAppleWithUniqRetry(String origTx, String txId, String newProductId, Consumer<SubscriptionEntity> updater) {
         SubscriptionEntity sub = findAppleSubscription(origTx, txId);
+        
+        // Проверяем upgrade кейс: если productId меняется при том же originalTransactionId
+        // это upgrade (месячная -> годовая), обновляем существующую запись
+        if (sub.getId() != null && origTx != null && newProductId != null) {
+            String existingProductId = sub.getProductId();
+            if (existingProductId != null && !existingProductId.equals(newProductId)) {
+                log.info("Apple upgrade detected in notification: originalTxId={}, old productId={}, new productId={}, updating existing subscription",
+                        origTx, existingProductId, newProductId);
+                // Обновляем существующую запись (меняем productId)
+                // Это позволяет избежать конфликта уникального индекса на (provider, original_transaction_id)
+            }
+        }
+        
         updater.accept(sub);
 
         try {
@@ -131,6 +152,14 @@ public class AppleServerNotificationService {
             return;
         } catch (DataIntegrityViolationException race) {
             SubscriptionEntity existing = findAppleSubscription(origTx, txId);
+            // Проверяем upgrade кейс при race condition тоже
+            if (existing.getId() != null && origTx != null && newProductId != null) {
+                String existingProductId = existing.getProductId();
+                if (existingProductId != null && !existingProductId.equals(newProductId)) {
+                    log.info("Apple upgrade detected during race in notification: originalTxId={}, old productId={}, new productId={}, updating existing subscription",
+                            origTx, existingProductId, newProductId);
+                }
+            }
             updater.accept(existing);
             subRepo.saveAndFlush(existing);
         }
@@ -152,7 +181,11 @@ public class AppleServerNotificationService {
         if (originalTxId != null) sub.setOriginalTransactionId(originalTxId);
         if (transactionId != null) sub.setAppleTransactionId(transactionId);
 
-        sub.setProductId(normalize(tx.getProductId()));
+        String newProductId = normalize(tx.getProductId());
+        sub.setProductId(newProductId);
+        
+        // purchaseToken — legacy/stable key, берём originalTxId если есть
+        // При upgrade обновляем существующую запись, поэтому purchaseToken остается тем же (originalTransactionId)
         sub.setPurchaseToken(originalTxId != null ? originalTxId : transactionId);
 
         Instant purchaseAt = AppleTime.msToInstant(tx.getPurchaseDate());

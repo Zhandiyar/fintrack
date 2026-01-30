@@ -36,7 +36,7 @@ public class SubscriptionService {
     public EntitlementResponse verifyGoogleAndSave(GoogleVerifyRequest req, @Nullable String idemKey) {
         var user = userService.getCurrentUser();
 
-        var cached = findIdemCached(user, SubscriptionProvider.GOOGLE, idemKey);
+        var cached = findIdemCached(user, SubscriptionProvider.GOOGLE, idemKey, req.productId());
         if (cached != null) return cached;
 
         var snap = gp.verify(req.productId(), req.purchaseToken(), true);
@@ -72,7 +72,7 @@ public class SubscriptionService {
     public EntitlementResponse verifyAppleAndSave(AppleVerifyRequest req, @Nullable String idemKey) {
         var user = userService.getCurrentUser();
 
-        var cached = findIdemCached(user, SubscriptionProvider.APPLE, idemKey);
+        var cached = findIdemCached(user, SubscriptionProvider.APPLE, idemKey, req.productId());
         if (cached != null) return cached;
 
         AppleSk2Snapshot snap;
@@ -188,13 +188,28 @@ public class SubscriptionService {
 
     // ===== Idempotency =====
 
-    private EntitlementResponse findIdemCached(UserEntity user, SubscriptionProvider provider, @Nullable String idemKey) {
+    /**
+     * Находит кешированный ответ по idempotency key.
+     * 
+     * ВАЖНО: для корректной обработки upgrade (месячная -> годовая) нужно учитывать productId.
+     * При upgrade пользователь может использовать тот же idemKey для разных productId,
+     * поэтому проверяем, что кешированный ответ соответствует запрашиваемому productId.
+     */
+    private EntitlementResponse findIdemCached(UserEntity user, SubscriptionProvider provider, @Nullable String idemKey, @Nullable String productId) {
         if (idemKey == null || idemKey.isBlank()) return null;
 
         return idemRepo.findByUserAndProviderAndIdemKey(user, provider, idemKey)
                 .map(e -> {
                     try {
-                        return objectMapper.readValue(e.getResponseJson(), EntitlementResponse.class);
+                        EntitlementResponse cached = objectMapper.readValue(e.getResponseJson(), EntitlementResponse.class);
+                        // Проверяем, что кешированный ответ соответствует запрашиваемому productId
+                        // Это важно для upgrade кейса: месячная и годовая могут иметь одинаковый idemKey
+                        if (productId != null && cached.productId() != null && !productId.equals(cached.productId())) {
+                            log.debug("Idempotency cache mismatch: cached productId={}, requested productId={}, ignoring cache", 
+                                    cached.productId(), productId);
+                            return null;
+                        }
+                        return cached;
                     } catch (Exception ex) {
                         log.warn("Failed to parse idempotency cached response. idemKey={} provider={}", idemKey, provider, ex);
                         return null;

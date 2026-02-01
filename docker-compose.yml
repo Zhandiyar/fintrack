@@ -1,5 +1,11 @@
 version: '3.8'
 
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   nginx:
     image: nginx:alpine
@@ -19,6 +25,7 @@ services:
       - finance-security
     networks:
       - app-network
+    logging: *default-logging
 
   db:
     image: postgres:16
@@ -28,22 +35,25 @@ services:
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - POSTGRES_DB=${POSTGRES_DB}
     ports:
-      - '${POSTGRES_PORT:-5432}:5432'
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
       - postgres_logs:/var/log/postgresql
     networks:
       - app-network
-#    healthcheck:
-#      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-#      interval: 10s
-#      timeout: 5s
-#      retries: 5
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
   migrator:
     build:
       context: ./migrator
       dockerfile: Dockerfile
+    restart: "no"
     environment:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/${POSTGRES_DB}
       - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER}
@@ -55,9 +65,11 @@ services:
       - FLYWAY_SCHEMAS=public
       - SPRING_PROFILES_ACTIVE=prod
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     networks:
       - app-network
+    logging: *default-logging
 
   finance-security:
     build:
@@ -83,15 +95,19 @@ services:
       - LOGGING_LEVEL_ROOT=INFO
       - LOGGING_LEVEL_COM_FINTRACK=INFO
     depends_on:
-      - db
-      - migrator
+      db:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
     networks:
       - app-network
+    logging: *default-logging
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
+      start_period: 20s
 
   fintrack:
     user: "1000:2001"
@@ -108,13 +124,17 @@ services:
       - JAVA_OPTS=${JAVA_OPTS}
       - JWT_SECRET=${JWT_SECRET}
       - SECURITY_SERVICE_URL=http://finance-security:8080
-      - LOGGING_LEVEL_ROOT=DEBUG
-      - LOGGING_LEVEL_COM_FINTRACK=DEBUG
+
+      # ❗️В PROD держи INFO, иначе docker logs раздуют диск
+      - LOGGING_LEVEL_ROOT=INFO
+      - LOGGING_LEVEL_COM_FINTRACK=INFO
+
       # --- Google (relaxed binding) ---
       - GOOGLE_API_URL=https://androidpublisher.googleapis.com/androidpublisher/v3
       - GOOGLE_PACKAGE_NAME=kz.finance.fintrack
       - GOOGLE_ALLOWED_PRODUCTS=fintrack_pro_month,fintrack_pro_year
       - GOOGLE_SERVICE_ACCOUNT_PATH=/app/secure/google-service-account.json
+
       # --- Apple (relaxed binding) ---
       - APPLE_BUNDLE_ID=pro.fintrack.app
       - APPLE_ISSUER_ID=${APPLE_ISSUER_ID}
@@ -126,20 +146,24 @@ services:
       - APPLE_ALLOWED_PRODUCTS=fintrack_pro_month,fintrack_pro_year
       - APPLE_PRIVATE_KEY_P8_PATH=file:/app/secure/AuthKey.p8
     volumes:
-      # монтируем JSON ключ внутрь контейнера только для чтения
       - /root/fintrack/secure/google-service-account.json:/app/secure/google-service-account.json:ro
       - /root/fintrack/secure/AuthKey.p8:/app/secure/AuthKey.p8:ro
     depends_on:
-      - db
-      - migrator
-      - finance-security
+      db:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+      finance-security:
+        condition: service_healthy
     networks:
       - app-network
+    logging: *default-logging
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/actuator/health || exit 1"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 5
+      start_period: 20s
 
 networks:
   app-network:

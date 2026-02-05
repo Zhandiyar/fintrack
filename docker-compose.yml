@@ -20,7 +20,7 @@ services:
       - ./nginx/conf.d/app-links:/etc/nginx/conf.d/app-links:ro
       - ./nginx/conf.d/app-links.conf:/etc/nginx/conf.d/app-links.conf:ro
       - ./nginx/static:/usr/share/nginx/html:ro
-      - - nginx_logs:/var/log/nginx
+      - nginx_logs:/var/log/nginx
     depends_on:
       - fintrack
       - finance-security

@@ -28,7 +28,7 @@ public class SubscriptionEntity {
     @Column(name = "product_id", nullable = false)
     private String productId;
 
-    @Column(name = "purchase_token", nullable = false)
+    @Column(name = "purchase_token")
     private String purchaseToken;
 
     @Column(name = "purchase_date", nullable = false)

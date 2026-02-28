@@ -397,6 +397,21 @@ public class SubscriptionPersistenceService {
     ) {
         assertOwnershipOrAssign(sub, user);
 
+        if (!revoked) {
+            Instant currentExpiry = sub.getExpiryDate();
+            if (currentExpiry != null && expiresAt != null && !expiresAt.isAfter(currentExpiry)) {
+                log.info("Ignoring non-monotonic Apple snapshot: incoming expiry <= current expiry (current={}, incoming={})",
+                        currentExpiry, expiresAt);
+                return;
+            }
+            // If currentExpiry != null and incoming expiresAt is null, also ignore to prevent regression.
+            if (currentExpiry != null && expiresAt == null) {
+                log.info("Ignoring non-monotonic Apple snapshot: incoming expiry is null while current expiry exists (current={})",
+                        currentExpiry);
+                return;
+            }
+        }
+
         sub.setProvider(SubscriptionProvider.APPLE);
 
         // purchaseToken — стабильный: origTx (если есть) иначе txId
